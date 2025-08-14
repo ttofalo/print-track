@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API</title>
+</head>
+<body>
+    <h1>Test API Print Server</h1>
+    <button onclick="testAPI()">Probar API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Probando...';
+            
+            try {
+                const response = await fetch('http://10.10.3.171:3000/api/print-jobs');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h3>✅ API Funcionando</h3>
+                    <p>Total trabajos: ${data.length}</p>
+                    <pre>${JSON.stringify(data.slice(0, 3), null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>❌ Error en API</h3>
+                    <p>Error: ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 

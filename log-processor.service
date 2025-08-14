@@ -1,0 +1,23 @@
+[Unit]
+Description=CUPS Log Processor
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=oneshot
+User=sistemas
+Group=sistemas
+WorkingDirectory=/home/sistemas/print_server
+ExecStart=/home/sistemas/print_server/venv/bin/python procesar_logs.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=log-processor
+
+# Security
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target 

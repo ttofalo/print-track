@@ -1,0 +1,11 @@
+[Unit]
+Description=Run CUPS Log Processor every 5 minutes
+Requires=log-processor.service
+
+[Timer]
+Unit=log-processor.service
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target 

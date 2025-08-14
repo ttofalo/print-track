@@ -1,0 +1,29 @@
+[Unit]
+Description=Print Server Dashboard
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=sistemas
+Group=sistemas
+WorkingDirectory=/home/sistemas/print_server
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=print-server
+
+# Security
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target 
