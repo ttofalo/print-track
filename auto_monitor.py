@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script de monitoreo automático para procesar logs de CUPS
-Se ejecuta cada 10 minutos automáticamente en segundo plano
+Monitor automático para el procesador de logs
+Se ejecuta solo cada 5 minutos en el fondo
 """
 
 import subprocess
@@ -24,7 +24,7 @@ logging.basicConfig(
 def run_log_processor():
     """Ejecutar el procesador de logs"""
     try:
-        # Ejecutar procesar_logs.py
+        # Ejecutar el script de procesamiento
         result = subprocess.run(
             [sys.executable, 'procesar_logs.py'],
             capture_output=True,
@@ -33,20 +33,20 @@ def run_log_processor():
         )
         
         if result.returncode == 0:
-            logging.info("✅ Procesamiento de logs completado exitosamente")
+            logging.info("✓ Procesamiento de logs completado exitosamente")
             if result.stdout:
                 logging.info(f"Salida: {result.stdout.strip()}")
         else:
-            logging.error(f"❌ Error en el procesamiento: {result.stderr}")
+            logging.error(f"✗ Error en el procesamiento: {result.stderr}")
             
     except subprocess.TimeoutExpired:
-        logging.error("❌ Timeout: El procesamiento tardó más de 60 segundos")
+        logging.error("✗ Timeout: El procesamiento tardó más de 60 segundos")
     except Exception as e:
-        logging.error(f"❌ Error ejecutando procesador: {e}")
+        logging.error(f"✗ Error ejecutando el procesador: {e}")
 
 def main():
     """Función principal del monitoreo automático"""
-    interval_minutes = 10
+    interval_minutes = 5
     interval_seconds = interval_minutes * 60
     
     logging.info(f"🚀 Iniciando monitoreo automático cada {interval_minutes} minutos")
@@ -74,7 +74,7 @@ def main():
     except KeyboardInterrupt:
         logging.info("🛑 Monitoreo detenido por el usuario")
     except Exception as e:
-        logging.error(f"❌ Error en el monitoreo: {e}")
+        logging.error(f"✗ Error en el monitoreo: {e}")
 
 if __name__ == "__main__":
     main() 

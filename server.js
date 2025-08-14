@@ -31,9 +31,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// =====================================================
-// ENDPOINTS DE LA API
-// =====================================================
+// Rutas de la API
 
 // Endpoint principal - servir el login
 app.get('/', (req, res) => {
@@ -240,9 +238,7 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// =====================================================
-// MANEJO DE ERRORES
-// =====================================================
+// Manejo de errores
 
 // Middleware para manejar rutas no encontradas
 app.use((req, res) => {
@@ -262,56 +258,54 @@ app.use((error, req, res, next) => {
   });
 });
 
-// =====================================================
-// INICIALIZACIÓN DEL SERVIDOR
-// =====================================================
+// Inicialización del servidor
 
-// Función para verificar la conexión a la base de datos
+// Verificar conexión a la base de datos
 async function checkDatabaseConnection() {
   try {
     const connection = await pool.getConnection();
     await connection.ping();
     connection.release();
-    console.log('✅ Conexión a la base de datos establecida correctamente');
+    console.log('✓ Base de datos conectada correctamente');
     return true;
   } catch (error) {
-    console.error('❌ Error conectando a la base de datos:', error.message);
+    console.error('✗ Error conectando a la base de datos:', error.message);
     return false;
   }
 }
 
-// Iniciar servidor
+// Inicializar el servidor
 async function startServer() {
-  console.log('🚀 Iniciando servidor Print Server...');
+  console.log('🚀 Iniciando Print Server...');
   
   // Verificar conexión a la base de datos
   const dbConnected = await checkDatabaseConnection();
   if (!dbConnected) {
-    console.error('❌ No se pudo conectar a la base de datos. Verifica la configuración.');
+    console.error('✗ No se pudo conectar a la base de datos. Verificar configuración.');
     process.exit(1);
   }
   
   app.listen(port, '0.0.0.0', () => {
-    console.log(`✅ Servidor corriendo en http://0.0.0.0:${port}`);
-            console.log(`📊 Dashboard disponible en http://10.10.3.171:${port}`);
-console.log(`🔧 API disponible en http://10.10.3.171:${port}/api`);
-console.log(`💚 Estado del servidor: http://10.10.3.171:${port}/api/health`);
+    console.log(`✓ Servidor ejecutándose en http://0.0.0.0:${port}`);
+    console.log(`📊 Dashboard disponible en http://10.10.3.171:${port}`);
+    console.log(`🔧 API disponible en http://10.10.3.171:${port}/api`);
+    console.log(`💚 Health check: http://10.10.3.171:${port}/api/health`);
   });
 }
 
-// Manejar señales de terminación
+// Manejo de señales de terminación
 process.on('SIGINT', () => {
-  console.log('\n🛑 Recibida señal de terminación. Cerrando servidor...');
+  console.log('\n🛑 Señal de terminación recibida. Cerrando servidor...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.log('\n🛑 Recibida señal de terminación. Cerrando servidor...');
+  console.log('\n🛑 Señal de terminación recibida. Cerrando servidor...');
   process.exit(0);
 });
 
 // Iniciar el servidor
 startServer().catch(error => {
-  console.error('❌ Error iniciando servidor:', error);
+  console.error('✗ Error al iniciar el servidor:', error);
   process.exit(1);
 }); 

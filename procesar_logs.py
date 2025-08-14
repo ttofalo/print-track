@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Script para procesar logs de CUPS y poblar la base de datos MySQL
-Reemplaza el sistema de archivos de texto por una base de datos relacional
-Incluye modo de monitoreo automático cada X minutos
+Procesador de logs de CUPS para el Print Server
+Lee los logs y los mete en la BD MySQL
+Antes usaba archivos de texto, ahora usa BD
+Se puede ejecutar cada X minutos automáticamente
 """
 
 import os
@@ -24,14 +25,14 @@ logging.basicConfig(
 )
 
 # Configuración de archivos
-LOG_FILE = "/var/log/cups/page_log"  # Archivo único de logs de CUPS
-PROCESSED_JOBS_FILE = "trabajos_procesados.txt"  # Mantener para compatibilidad
+LOG_FILE = "/var/log/cups/page_log"  # Archivo de logs de CUPS
+PROCESSED_JOBS_FILE = "trabajos_procesados.txt"  # Archivo de compatibilidad
 
 # Configuración de la base de datos
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'print_user',
-    'password': 'Por7a*sis',  # Contraseña segura para producción
+    'password': 'Por7a*sis',  # Contraseña de producción
     'database': 'print_server_db',
     'charset': 'utf8mb4',
     'autocommit': True
