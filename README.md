@@ -36,14 +36,13 @@ print_server/
 ├── database_setup.sql      # Estructura de base de datos
 ├── package.json            # Dependencias Node.js
 ├── check_status.sh         # Script de verificación
-├── nginx.conf              # Configuración Nginx (opcional)
 └── README.md
 ```
 
 ## 🛠️ Instalación
 
 ### Prerrequisitos
-- Linux (Ubuntu/Debian)
+- Linux (Ubuntu 22.04 LTS)
 - Python 3.8+
 - Node.js 16+
 - MySQL 8.0+
@@ -69,7 +68,7 @@ FLUSH PRIVILEGES;
 
 ### 3. Configurar el Proyecto
 ```bash
-git clone <tu-repositorio>
+git clone <https://github.com/ttofalo/print-track>
 cd print_server
 
 # Dependencias Node.js
@@ -115,3 +114,4 @@ sudo systemctl start print-server log-processor.timer
 - Logs del servidor: `sudo journalctl -u print-server -f`
 - Logs del procesador: `sudo journalctl -u log-processor -f`
 - Estado de servicios: `./check_status.sh`
+
