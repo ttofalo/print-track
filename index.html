@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="server-ip" content="10.10.3.171" />
     <title>Print Server Dashboard</title>
     <link rel="icon" type="image/png" href="porta_icon.png">
     <link rel="stylesheet" href="style.css" />
@@ -20,14 +19,6 @@
                     <h1>Print Server</h1>
                     <p>Panel de control de impresiones</p>
                 </div>
-            </div>
-            <div class="header-actions">
-                <button class="button secondary">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2v20M2 12h20"/>
-                    </svg>
-                    Exportar
-                </button>
             </div>
         </div>
     </header>
@@ -194,11 +185,30 @@
                             <label for="printer-select" class="filter-label">Impresora</label>
                             <select id="printer-select" class="select-trigger">
                                 <option value="all">Todas las impresoras</option>
-                                <option value="PHARI074">PHARI074</option>
-                                <option value="PHARI075">PHARI075</option>
-                                <option value="PHARI076">PHARI076</option>
-                                <option value="PHARI077">PHARI077</option>
-                                <option value="PHARI078">PHARI078</option>
+                                <option value="PHARI001">PHARI001</option>
+                                <option value="PHARI002">PHARI002</option>
+                                <option value="PHARI003">PHARI003</option>
+                                <option value="PHARI005">PHARI005</option>
+                                <option value="PHARI012">PHARI012</option>
+                                <option value="PHARI014">PHARI014</option>
+                                <option value="PHARI015">PHARI015</option>
+                                <option value="PHARI016">PHARI016</option>
+                                <option value="PHARI017">PHARI017</option>
+                                <option value="PHARI019">PHARI019</option>
+                                <option value="PHARI023">PHARI023</option>
+                                <option value="PHARI025">PHARI025</option>
+                                <option value="PHARI026">PHARI026</option>
+                                <option value="PHARI028">PHARI028</option>
+                                <option value="PHARI029">PHARI029</option>
+                                <option value="PHARI030">PHARI030</option>
+                                <option value="PHARI033">PHARI033</option>
+                                <option value="PHARI036">PHARI036</option>
+                                <option value="PHARI038">PHARI038</option>
+                                <option value="PHARI048">PHARI048</option>
+                                <option value="PHARI056">PHARI056</option>
+                                <option value="PHARI064">PHARI064</option>
+                                <option value="PHARI065">PHARI065</option>
+                                <option value="PHARI066">PHARI066</option>
                             </select>
                         </div>
                     </div>
@@ -226,8 +236,18 @@
                 <!-- Tabla de trabajos -->
                 <div class="table-container">
                     <div class="card-header">
-                        <div class="card-title">Trabajos de impresión</div>
-                        <div class="card-description">Lista de todos los trabajos de impresión recientes</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="card-title">Trabajos de impresión</div>
+                                <div class="card-description">Lista de todos los trabajos de impresión recientes</div>
+                            </div>
+                            <button id="export-btn" class="button secondary">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2v20M2 12h20"/>
+                                </svg>
+                                Exportar XLSX
+                            </button>
+                        </div>
                     </div>
                     <div class="card-content" style="padding: 0;">
                         <table class="table">
@@ -268,6 +288,10 @@
             window.location.href = 'login.html';
         }
     </script>
+    <!-- ExcelJS para exportación con estilos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    
+    <!-- Script principal -->
     <script src="script.js"></script>
 </body>
 </html>
