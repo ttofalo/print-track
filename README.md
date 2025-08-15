@@ -1,14 +1,15 @@
-# Print Server Dashboard
+# Print Server Dashboard v4
 
-Sistema de monitoreo de impresiones para servidores CUPS con interfaz web y base de datos MySQL.
+Sistema completo de monitoreo de impresiones para servidores CUPS con interfaz web, base de datos MySQL y monitoreo en tiempo real del estado de impresoras.
 
-##  Características
+## Características Principales
 
 - Dashboard en tiempo real con estadísticas de impresiones
 - Sistema de autenticación
 - Filtros avanzados para trabajos de impresión
-- Ranking de usuarios más activos
-- Monitoreo automático cada 5 minutos
+- Estado de impresoras con monitoreo automático por ping
+- Reporte XLSX de trabajos de impresión
+- Nombres de documentos capturados automáticamente
 - Interfaz responsive y moderna
 
 ## 🏗️ Arquitectura
@@ -16,24 +17,26 @@ Sistema de monitoreo de impresiones para servidores CUPS con interfaz web y base
 ```
 Frontend (HTML/CSS/JS) ↔ Backend (Node.js) ↔ Database (MySQL)
                               ↑
-                    Python (Log Parser)
+                    Python (Log Parser + Monitor)
 ```
 
 ## 📁 Estructura del Proyecto
 
 ```
 print_server/
-├── server.js               # Servidor principal
-├── index.html              # Dashboard
-├── login.html              # Login
-├── script.js               # Frontend JS
-├── style.css               # Estilos
+├── server.js               # Servidor principal Node.js
+├── index.html              # Dashboard principal
+├── login.html              # Sistema de autenticación
+├── script.js               # Frontend JavaScript
+├── style.css               # Estilos principales
+├── printer-status.js       # Monitor de estado de impresoras
+├── printer-status.css      # Estilos del monitor de impresoras
 ├── procesar_logs.py        # Procesador de logs CUPS
 ├── auto_monitor.py         # Monitor automático
-├── database_setup.sql      # Estructura BD
+├── database_setup.sql      # Estructura de base de datos
 ├── package.json            # Dependencias Node.js
-├── check_status.sh         # Script de estado
-├── nginx.conf              # Config Nginx (opcional)
+├── check_status.sh         # Script de verificación
+├── nginx.conf              # Configuración Nginx (opcional)
 └── README.md
 ```
 
@@ -69,31 +72,25 @@ FLUSH PRIVILEGES;
 git clone <tu-repositorio>
 cd print_server
 
-# Instalar dependencias Node.js
+# Dependencias Node.js
 npm install
 
-# Crear entorno virtual Python
+# Entorno virtual Python
 python3 -m venv venv
 source venv/bin/activate
 pip install pymysql
 
-# Configurar base de datos
+# Base de datos
 mysql -u print_user -p print_server_db < database_setup.sql
 ```
 
-### 4. Configurar Servicios
+### 4. Servicios del Sistema
 ```bash
-# Copiar servicios systemd
-sudo cp print-server.service /etc/systemd/system/
-sudo cp log-processor.service /etc/systemd/system/
-sudo cp log-processor.timer /etc/systemd/system/
-
-# Habilitar y arrancar servicios
+sudo cp *.service /etc/systemd/system/
+sudo cp *.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable print-server
-sudo systemctl enable log-processor.timer
-sudo systemctl start print-server
-sudo systemctl start log-processor.timer
+sudo systemctl enable print-server log-processor.timer
+sudo systemctl start print-server log-processor.timer
 ```
 
 ### 5. Verificar Instalación
@@ -101,22 +98,20 @@ sudo systemctl start log-processor.timer
 ./check_status.sh
 ```
 
-## 🚀 Uso
+## Uso
 
-- **Dashboard**: http://IP-SERVIDOR:3000
-- **API**: http://IP-SERVIDOR:3000/api
-- **Health Check**: http://IP-SERVIDOR:3000/api/health
+- Dashboard: http://IP-SERVIDOR:3000
+- API: http://IP-SERVIDOR:3000/api
+- Estado: http://IP-SERVIDOR:3000/api/health
 
-## 📊 Monitoreo
+## Monitoreo
 
-El sistema procesa automáticamente los logs de CUPS cada 5 minutos y actualiza las estadísticas en tiempo real.
+- Logs CUPS: Procesamiento automático cada 5 minutos
+- Estado de impresoras: Ping automático cada 30 segundos
+- Estadísticas: Actualización en tiempo real
 
-## 🔧 Mantenimiento
+## Mantenimiento
 
-- **Logs del servidor**: `sudo journalctl -u print-server -f`
-- **Logs del procesador**: `sudo journalctl -u log-processor -f`
-- **Estado de servicios**: `./check_status.sh`
-
-## 📄 Licencia
-
-MIT License 
+- Logs del servidor: `sudo journalctl -u print-server -f`
+- Logs del procesador: `sudo journalctl -u log-processor -f`
+- Estado de servicios: `./check_status.sh`
