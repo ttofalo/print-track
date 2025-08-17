@@ -287,9 +287,9 @@ async function startServer() {
   
   app.listen(port, '0.0.0.0', () => {
     console.log(`✓ Servidor ejecutándose en http://0.0.0.0:${port}`);
-    console.log(`📊 Dashboard disponible en http://10.10.3.171:${port}`);
-    console.log(`🔧 API disponible en http://10.10.3.171:${port}/api`);
-    console.log(`💚 Health check: http://10.10.3.171:${port}/api/health`);
+    console.log(`📊 Dashboard disponible en http://localhost:${port}`);
+    console.log(`🔧 API disponible en http://localhost:${port}/api`);
+    console.log(`💚 Health check: http://localhost:${port}/api/health`);
   });
 }
 

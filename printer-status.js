@@ -144,24 +144,33 @@ class PrinterStatusMonitor {
     }
     
     async pingPrinter(ip) {
-        try {
-            // Usar fetch con timeout para hacer ping a la IP
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), this.pingTimeout);
+        return new Promise((resolve) => {
+            // Usar el comando ping del sistema
+            const pingProcess = require('child_process').spawn('ping', ['-c', '1', '-W', '2', ip]);
             
-            // Intentar conectar al puerto 80 (HTTP) como método de ping
-            const response = await fetch(`http://${ip}:80`, { 
-                method: 'HEAD',
-                signal: controller.signal,
-                mode: 'no-cors'
+            let output = '';
+            let errorOutput = '';
+            
+            pingProcess.stdout.on('data', (data) => {
+                output += data.toString();
             });
             
-            clearTimeout(timeoutId);
-            return true;
-        } catch (error) {
-            // Si hay timeout o error, la impresora está offline
-            return false;
-        }
+            pingProcess.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+            });
+            
+            pingProcess.on('close', (code) => {
+                // Si el código es 0, el ping fue exitoso
+                const isOnline = code === 0;
+                resolve(isOnline);
+            });
+            
+            // Timeout de seguridad
+            setTimeout(() => {
+                pingProcess.kill();
+                resolve(false);
+            }, 5000);
+        });
     }
     
     async checkPrinterStatus(printer) {

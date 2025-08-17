@@ -12,7 +12,7 @@ Sistema completo de monitoreo de impresiones para servidores CUPS con interfaz w
 - Nombres de documentos capturados automáticamente
 - Interfaz responsive y moderna
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 ```
 Frontend (HTML/CSS/JS) ↔ Backend (Node.js) ↔ Database (MySQL)
@@ -20,7 +20,7 @@ Frontend (HTML/CSS/JS) ↔ Backend (Node.js) ↔ Database (MySQL)
                     Python (Log Parser + Monitor)
 ```
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 print_server/
@@ -40,18 +40,19 @@ print_server/
 └── README.md
 ```
 
-## 🛠️ Instalación
+## Instalación
 
 ### Prerrequisitos
 - Linux (Ubuntu/Debian)
 - Python 3.8+
 - Node.js 16+
 - MySQL 8.0+
+- CUPS instalado y funcionando
 
 ### 1. Instalar Dependencias
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip nodejs npm mysql-server mysql-client git -y
+sudo apt install python3 python3-pip nodejs npm mysql-server mysql-client git cups -y
 ```
 
 ### 2. Configurar MySQL
@@ -71,6 +72,7 @@ FLUSH PRIVILEGES;
 ```bash
 git clone <tu-repositorio>
 cd print_server
+git checkout version-4
 
 # Dependencias Node.js
 npm install
@@ -78,13 +80,28 @@ npm install
 # Entorno virtual Python
 python3 -m venv venv
 source venv/bin/activate
-pip install pymysql
+pip install pymysql cryptography
 
 # Base de datos
 mysql -u print_user -p print_server_db < database_setup.sql
 ```
 
-### 4. Servicios del Sistema
+### 4. Configurar Permisos CUPS (CRÍTICO)
+```bash
+# Agregar usuario al grupo lp si no está
+sudo usermod -a -G lp sistemas
+
+# Cambiar permisos del directorio de CUPS
+sudo chmod 750 /var/spool/cups/
+
+# Cambiar permisos de archivos de control de CUPS
+sudo chmod 640 /var/spool/cups/c*
+
+# Verificar que el usuario pueda acceder
+ls -la /var/spool/cups/
+```
+
+### 5. Servicios del Sistema
 ```bash
 sudo cp *.service /etc/systemd/system/
 sudo cp *.timer /etc/systemd/system/
@@ -93,9 +110,13 @@ sudo systemctl enable print-server log-processor.timer
 sudo systemctl start print-server log-processor.timer
 ```
 
-### 5. Verificar Instalación
+### 6. Verificar Instalación
 ```bash
 ./check_status.sh
+
+# Verificar que el procesador de logs funcione
+source venv/bin/activate
+python procesar_logs.py --once
 ```
 
 ## Uso
@@ -115,3 +136,36 @@ sudo systemctl start print-server log-processor.timer
 - Logs del servidor: `sudo journalctl -u print-server -f`
 - Logs del procesador: `sudo journalctl -u log-processor -f`
 - Estado de servicios: `./check_status.sh`
+
+## Solución de Problemas
+
+### Nombres de documentos no aparecen
+```bash
+# Verificar permisos de CUPS
+sudo ls -la /var/spool/cups/
+sudo ls -la /var/spool/cups/c*
+
+# Si no hay permisos, ejecutar:
+sudo chmod 750 /var/spool/cups/
+sudo chmod 640 /var/spool/cups/c*
+
+# Verificar que el usuario esté en grupo lp
+groups sistemas
+
+# Probar script manualmente
+source venv/bin/activate
+python procesar_logs.py --once
+```
+
+### Error de conexión a MySQL
+```bash
+# Verificar que MySQL esté corriendo
+sudo systemctl status mysql
+
+# Verificar credenciales en procesar_logs.py
+# Usuario: print_user, Password: Por7a*sis
+```
+
+## Licencia
+
+MIT License

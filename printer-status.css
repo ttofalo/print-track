@@ -147,29 +147,20 @@
     align-items: center;
     gap: 12px;
     padding: 16px;
-    background: #f9fafb;
+    background: white;
+    border: 1px solid #e0e0e0;
     border-radius: 8px;
-    border: 2px solid #e5e7eb;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
     position: relative;
 }
 
 .printer-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.printer-card.online {
-    border-color: #10b981;
-    background: #f0fdf4;
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
-}
-
-.printer-card.offline {
-    border-color: #ef4444;
-    background: #fef2f2;
-    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
-}
+/* Estilos de estado removidos - solo cambia la bolita */
 
 .printer-status-dot {
     width: 16px;
