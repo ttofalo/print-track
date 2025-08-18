@@ -70,7 +70,7 @@ FLUSH PRIVILEGES;
 
 ### 3. Configurar el Proyecto
 ```bash
-git clone <tu-repositorio>
+git clone https://github.com/ttofalo/print-track.git
 cd print_server
 git checkout version-4
 
@@ -169,3 +169,4 @@ sudo systemctl status mysql
 ## Licencia
 
 MIT License
+
