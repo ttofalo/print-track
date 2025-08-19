@@ -1,4 +1,4 @@
-# Print Server Dashboard v4
+# Print Server Dashboard v5
 
 Sistema completo de monitoreo de impresiones para servidores CUPS con interfaz web, base de datos MySQL y monitoreo en tiempo real del estado de impresoras.
 
@@ -174,5 +174,6 @@ sudo systemctl status mysql
 <img width="1397" height="907" alt="image" src="https://github.com/user-attachments/assets/9b632310-a3ba-4171-ab70-8cf0e863ac91" />
 <img width="318" height="557" alt="image" src="https://github.com/user-attachments/assets/ab028c2d-8a5c-4cee-a3f4-d25d4e23099f" />
 <img width="327" height="106" alt="image" src="https://github.com/user-attachments/assets/96995083-b2e2-48e4-a1e9-5364767b39ba" />
+
 
 
