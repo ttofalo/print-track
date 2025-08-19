@@ -14,6 +14,7 @@ import time
 import argparse
 import glob
 import re
+import subprocess
 from datetime import datetime
 from typing import Set, List, Dict
 import sys
@@ -189,12 +190,16 @@ class CUPSControlFileParser:
             
             job_info = {}
             
-            # Extraer job-name (nombre del documento) - mejorar regex
-            job_name_match = re.search(r'job-name([^B]*?)(?:B|$)', content)
+            # Extraer job-name (nombre del documento) - formato real de CUPS
+            job_name_match = re.search(r'job-name\s*([^\n\rB]+)', content, re.IGNORECASE)
             if job_name_match:
                 job_name = job_name_match.group(1).strip()
-                if job_name and job_name != 'Idocument-format':
-                    job_info['document_name'] = job_name
+                if job_name and len(job_name) > 2:
+                    # Limpiar el nombre del documento
+                    job_name = re.sub(r'[^\w\s\-\.\(\)]', '', job_name).strip()
+                    if job_name:
+                        job_info['document_name'] = job_name
+                        logging.info(f"Nombre extraído: '{job_name}' desde archivo de control")
             
             # Extraer job-originating-user-name (usuario) - mejorar regex
             user_match = re.search(r'job-originating-user-name([^B]*?)(?:B|$)', content)
@@ -304,14 +309,41 @@ class CUPSLogProcessor:
     def process_cups_control_files(self):
         """Procesar archivos de control de CUPS para obtener nombres reales de documentos"""
         try:
-            # Buscar archivos de control de CUPS
-            control_files = glob.glob(os.path.join(CUPS_SPOOL_DIR, "c*"))
+            # Buscar archivos de control de CUPS usando find
+            try:
+                # Si estamos ejecutando como root, no usar sudo
+                if os.geteuid() == 0:
+                    result = subprocess.run(['find', CUPS_SPOOL_DIR, '-name', 'c*', '-type', 'f'], 
+                                          capture_output=True, text=True, timeout=10)
+                else:
+                    result = subprocess.run(['sudo', 'find', CUPS_SPOOL_DIR, '-name', 'c*', '-type', 'f'], 
+                                          capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    control_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+                else:
+                    logging.warning(f"Error ejecutando find: {result.stderr}")
+                    control_files = []
+            except Exception as e:
+                logging.warning(f"Error buscando archivos de control: {e}")
+                control_files = []
             
             if not control_files:
                 logging.info("No se encontraron archivos de control de CUPS")
                 return
             
             logging.info(f"Procesando {len(control_files)} archivos de control de CUPS...")
+            
+            # Debug: mostrar contenido de algunos archivos
+            if control_files:
+                sample_file = control_files[0]
+                try:
+                    with open(sample_file, 'rb') as f:
+                        sample_content = f.read(500).decode('utf-8', errors='ignore')
+                    logging.info(f"Contenido de muestra del archivo {sample_file}:")
+                    logging.info(f"Primeros 500 bytes: {sample_content}")
+                except Exception as e:
+                    logging.warning(f"No se pudo leer archivo de muestra: {e}")
             
             updated_count = 0
             for control_file in control_files:
@@ -356,15 +388,17 @@ class CUPSLogProcessor:
                     
                     # Verificar si ya fue procesado
                     if job_data['job_id'] not in self.processed_jobs:
+                        # Insertar trabajo inmediatamente (con nombre genérico)
                         if self.db.insert_print_job(job_data):
                             self.processed_jobs.add(job_data['job_id'])
                             nuevos_trabajos += 1
-                    
-                    # Mostrar progreso cada 1000 líneas
-                    if line_num % 1000 == 0:
-                        logging.info(f"Procesadas {line_num} líneas...")
-            
-            logging.info(f"Procesamiento completado: {nuevos_trabajos} trabajos nuevos agregados")
+                            logging.info(f"Trabajo {job_data['job_id']} insertado con nombre genérico, se actualizará después")
+                        
+                        # Mostrar progreso cada 1000 líneas
+                        if line_num % 1000 == 0:
+                            logging.info(f"Procesadas {line_num} líneas...")
+                
+                logging.info(f"Procesamiento completado: {nuevos_trabajos} trabajos nuevos agregados")
             
             # Después de procesar el log, procesar archivos de control para actualizar nombres
             self.process_cups_control_files()
@@ -414,7 +448,11 @@ def main():
 
 def monitor_logs(processor, interval_minutes):
     """Ejecutar monitoreo continuo de logs"""
-    interval_seconds = interval_minutes * 60
+    # Si el intervalo es menor a 1, tratarlo como segundos
+    if interval_minutes < 1:
+        interval_seconds = interval_minutes * 60
+    else:
+        interval_seconds = interval_minutes * 60
     
     try:
         while True:

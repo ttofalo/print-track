@@ -215,6 +215,106 @@ app.get('/api/printers', async (req, res) => {
   }
 });
 
+// Endpoint para verificar estado de impresoras (ping)
+app.get('/api/printers/status', async (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    
+    // Lista de impresoras con sus IPs
+    const printers = [
+      { id: 'PHARI064', ip: '10.10.64.30', location: 'SISTEMAS' },
+      { id: 'PHARI019', ip: '10.10.64.66', location: 'RECEPCION GRANOS' },
+      { id: 'PHARI030', ip: '10.10.64.16', location: 'RECEPCION GRANOS' },
+      { id: 'PHARI029', ip: '10.10.64.21', location: 'OFI PLANTA ALCOHOL' },
+      { id: 'PHARI001', ip: '10.10.64.4', location: 'LABORATORIO PLANTA DE ALCOHOL' },
+      { id: 'PHARI038', ip: '10.10.64.17', location: 'DESPACHO DE CAMIONES' },
+      { id: 'PHARI025', ip: '10.10.64.63', location: 'INGENIERÍA' },
+      { id: 'PHARI026', ip: '10.10.64.65', location: 'INGENIERÍA' },
+      { id: 'PHARI056', ip: '10.10.64.20', location: 'LABORATORIO ALCOHOL' },
+      { id: 'PHARI066', ip: '10.10.64.10', location: 'OFICINA LIDERES DE CALIDAD' },
+      { id: 'PHARI014', ip: '10.10.64.15', location: 'OFICINA MANTENIMIENTO' },
+      { id: 'PHARI048', ip: '10.10.64.27', location: 'OFICINA DE PROTEINAS' },
+      { id: 'PHARI023', ip: '10.10.64.36', location: 'PAÑOL' },
+      { id: 'PHARI015', ip: '10.10.64.13', location: 'PRODUCCION - BIO 1' },
+      { id: 'PHARI016', ip: '10.10.64.238', location: 'IRIS' },
+      { id: 'PHARI065', ip: '10.10.64.31', location: 'CAPITAL HUMANO' },
+      { id: 'PHARI033', ip: '10.10.64.24', location: 'ADMINISTRACIÓN' },
+      { id: 'PHARI036', ip: '10.10.64.99', location: 'ADMINISTRACION' },
+      { id: 'PHARI017', ip: '10.10.64.8', location: 'ADMINISTRACION' },
+      { id: 'PHARI003', ip: '10.10.64.7', location: 'RECEPCION EDIFICIO ADMINISTRACIÓN' },
+      { id: 'PHARI002', ip: '10.10.64.18', location: 'LOGÍSTICA DE EXPEDICIÓN' },
+      { id: 'PHARI028', ip: '10.10.64.14', location: 'FRACCIONAMIENTO' },
+      { id: 'PHARI005', ip: '10.10.64.2', location: 'CALIDAD' },
+      { id: 'PHARI008', ip: '10.10.64.5', location: 'MARKETING' },
+      { id: 'PHARI011', ip: '10.10.209.7', location: 'ADMINISTRACION' },
+      { id: 'PHARI012', ip: '10.10.64.9', location: 'ADMINISTRACIÓN' },
+      { id: 'PHARI064-SOBRE', ip: '10.10.64.202', location: 'SOBREROTULADO' }
+    ];
+    
+    // Función para hacer ping a una IP
+    async function pingPrinter(ip) {
+      try {
+        // Usar ping con timeout de 2 segundos y solo 1 paquete
+        const { stdout, stderr } = await execAsync(`ping -c 1 -W 2 ${ip}`, { timeout: 3000 });
+        return { online: true, response: stdout };
+      } catch (error) {
+        return { online: false, error: error.message };
+      }
+    }
+    
+    // Verificar estado de todas las impresoras en paralelo
+    const statusPromises = printers.map(async (printer) => {
+      const status = await pingPrinter(printer.ip);
+      return {
+        ...printer,
+        status: status.online ? 'online' : 'offline',
+        lastCheck: new Date().toISOString(),
+        response: status.response || null,
+        error: status.error || null
+      };
+    });
+    
+    const printerStatuses = await Promise.allSettled(statusPromises);
+    
+    // Procesar resultados
+    const results = printerStatuses.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      } else {
+        return {
+          ...printers[index],
+          status: 'error',
+          lastCheck: new Date().toISOString(),
+          error: result.reason.message
+        };
+      }
+    });
+    
+    // Contar impresoras online
+    const onlineCount = results.filter(p => p.status === 'online').length;
+    const totalCount = results.length;
+    
+    res.json({
+      printers: results,
+      summary: {
+        online: onlineCount,
+        offline: totalCount - onlineCount,
+        total: totalCount,
+        lastCheck: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error verificando estado de impresoras:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: error.message 
+    });
+  }
+});
+
 // Endpoint de salud del servidor
 app.get('/api/health', async (req, res) => {
   try {

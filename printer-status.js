@@ -1,44 +1,19 @@
 // =====================================================
-// PRINTER STATUS MONITOR - COMPLETELY INDEPENDENT
+// PRINTER STATUS MONITOR - FRONTEND
 // =====================================================
 
 class PrinterStatusMonitor {
     constructor() {
-        this.printers = [
-            { id: 'PHARI064', ip: '10.10.64.30', location: 'SISTEMAS', status: 'offline' },
-            { id: 'PHARI019', ip: '10.10.64.66', location: 'RECEPCION GRANOS', status: 'offline' },
-            { id: 'PHARI030', ip: '10.10.64.16', location: 'RECEPCION GRANOS', status: 'offline' },
-            { id: 'PHARI029', ip: '10.10.64.21', location: 'OFI PLANTA ALCOHOL', status: 'offline' },
-            { id: 'PHARI001', ip: '10.10.64.4', location: 'LABORATORIO PLANTA DE ALCOHOL', status: 'offline' },
-            { id: 'PHARI038', ip: '10.10.64.17', location: 'DESPACHO DE CAMIONES', status: 'offline' },
-            { id: 'PHARI025', ip: '10.10.64.63', location: 'INGENIERÍA', status: 'offline' },
-            { id: 'PHARI026', ip: '10.10.64.65', location: 'INGENIERÍA', status: 'offline' },
-            { id: 'PHARI056', ip: '10.10.64.20', location: 'LABORATORIO ALCOHOL', status: 'offline' },
-            { id: 'PHARI066', ip: '10.10.64.10', location: 'OFICINA LIDERES DE CALIDAD', status: 'offline' },
-            { id: 'PHARI014', ip: '10.10.64.15', location: 'OFICINA MANTENIMIENTO', status: 'offline' },
-            { id: 'PHARI048', ip: '10.10.64.27', location: 'OFICINA DE PROTEINAS', status: 'offline' },
-            { id: 'PHARI023', ip: '10.10.64.36', location: 'PAÑOL', status: 'offline' },
-            { id: 'PHARI015', ip: '10.10.64.13', location: 'PRODUCCION - BIO 1', status: 'offline' },
-            { id: 'PHARI016', ip: '10.10.64.238', location: 'IRIS', status: 'offline' },
-            { id: 'PHARI064', ip: '10.10.64.202', location: 'SOBREROTULADO', status: 'offline' },
-            { id: 'PHARI065', ip: '10.10.64.31', location: 'CAPITAL HUMANO', status: 'offline' },
-            { id: 'PHARI033', ip: '10.10.64.24', location: 'ADMINISTRACIÓN', status: 'offline' },
-            { id: 'PHARI036', ip: '10.10.64.99', location: 'ADMINISTRACION', status: 'offline' },
-            { id: 'PHARI017', ip: '10.10.64.8', location: 'ADMINISTRACION', status: 'offline' },
-            { id: 'PHARI003', ip: '10.10.64.7', location: 'RECEPCION EDIFICIO ADMINISTRACIÓN', status: 'offline' },
-            { id: 'PHARI008', ip: '10.10.64.5', location: 'MARKETING', status: 'offline' },
-            { id: 'PHARI002', ip: '10.10.64.18', location: 'LOGÍSTICA DE EXPEDICIÓN', status: 'offline' },
-            { id: 'PHARI028', ip: '10.10.64.14', location: 'FRACCIONAMIENTO', status: 'offline' },
-            { id: 'PHARI005', ip: '10.10.64.2', location: 'CALIDAD', status: 'offline' },
-            { id: 'PHARI011', ip: '10.10.209.7', location: 'ADMINISTRACION', status: 'offline' },
-            { id: 'PHARI012', ip: '10.10.64.9', location: 'ADMINISTRACIÓN', status: 'offline' }
-        ];
-        
+        // Detectar IP automáticamente
+        this.baseURL = `http://${window.location.hostname}:3000/api`;
+        this.printers = [];
         this.onlineCount = 0;
-        this.totalCount = this.printers.length;
+        this.totalCount = 0;
         this.monitoringInterval = null;
-        this.pingTimeout = 3000; // 3 segundos timeout para ping
         this.isInitializing = true;
+        
+        console.log('🚀 Iniciando monitor de impresoras...');
+        console.log('API Base URL:', this.baseURL);
         
         this.init();
     }
@@ -75,7 +50,7 @@ class PrinterStatusMonitor {
                 </div>
                 <div class="modal-body">
                     <div class="printer-grid" id="printerGrid">
-                        ${this.printers.map(printer => this.createPrinterCard(printer)).join('')}
+                        <!-- Las impresoras se cargarán dinámicamente -->
                     </div>
                 </div>
             </div>
@@ -143,48 +118,6 @@ class PrinterStatusMonitor {
         }
     }
     
-    async pingPrinter(ip) {
-        return new Promise((resolve) => {
-            // Usar el comando ping del sistema
-            const pingProcess = require('child_process').spawn('ping', ['-c', '1', '-W', '2', ip]);
-            
-            let output = '';
-            let errorOutput = '';
-            
-            pingProcess.stdout.on('data', (data) => {
-                output += data.toString();
-            });
-            
-            pingProcess.stderr.on('data', (data) => {
-                errorOutput += data.toString();
-            });
-            
-            pingProcess.on('close', (code) => {
-                // Si el código es 0, el ping fue exitoso
-                const isOnline = code === 0;
-                resolve(isOnline);
-            });
-            
-            // Timeout de seguridad
-            setTimeout(() => {
-                pingProcess.kill();
-                resolve(false);
-            }, 5000);
-        });
-    }
-    
-    async checkPrinterStatus(printer) {
-        const isOnline = await this.pingPrinter(printer.ip);
-        const newStatus = isOnline ? 'online' : 'offline';
-        
-        if (printer.status !== newStatus) {
-            printer.status = newStatus;
-            this.updatePrinterCard(printer);
-        }
-        
-        return isOnline;
-    }
-    
     updatePrinterCard(printer) {
         const card = document.querySelector(`[data-printer-id="${printer.id}"]`);
         if (card) {
@@ -227,25 +160,45 @@ class PrinterStatusMonitor {
     }
     
     async checkAllPrinters() {
-        const promises = this.printers.map(printer => this.checkPrinterStatus(printer));
-        await Promise.allSettled(promises);
-        
-        // Marcar como inicializado después de la primera verificación
-        if (this.isInitializing) {
-            this.isInitializing = false;
+        try {
+            // Llamar al endpoint del backend para obtener el estado de todas las impresoras
+            const response = await fetch(`${this.baseURL}/printers/status`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Actualizar la lista de impresoras con los datos del backend
+            this.printers = data.printers;
+            this.totalCount = data.summary.total;
+            
+            // Actualizar las tarjetas de impresoras
+            this.printers.forEach(printer => {
+                this.updatePrinterCard(printer);
+            });
+            
+            // Marcar como inicializado después de la primera verificación
+            if (this.isInitializing) {
+                this.isInitializing = false;
+            }
+            
+            this.updateStatusIndicator();
+            
+        } catch (error) {
+            console.error('Error verificando estado de impresoras:', error);
+            // En caso de error, mantener el estado anterior
         }
-        
-        this.updateStatusIndicator();
     }
     
     startMonitoring() {
         // Verificación inicial
         this.checkAllPrinters();
         
-        // Verificación cada 30 segundos
+        // Verificación cada 20 segundos
         this.monitoringInterval = setInterval(() => {
             this.checkAllPrinters();
-        }, 30000);
+        }, 20000);
     }
     
     stopMonitoring() {
