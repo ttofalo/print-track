@@ -166,6 +166,13 @@ sudo systemctl status mysql
 # Usuario: print_user, Password: Por7a*sis
 ```
 
-## Licencia
+## Interfaces
 
-MIT License
+<img width="1552" height="903" alt="{C6591F5E-77EF-4936-B203-B96EE2F28C5B}" src="https://github.com/user-attachments/assets/96403dc1-41c5-4457-b132-9e60c478134d" />
+<img width="1721" height="909" alt="image" src="https://github.com/user-attachments/assets/06402dcc-f152-4f32-8698-e4cdbb545ed3" />
+<img width="910" height="696" alt="image" src="https://github.com/user-attachments/assets/452f6654-7e0a-43f5-a428-3f3ff3c250e6" />
+<img width="1397" height="907" alt="image" src="https://github.com/user-attachments/assets/9b632310-a3ba-4171-ab70-8cf0e863ac91" />
+<img width="318" height="557" alt="image" src="https://github.com/user-attachments/assets/ab028c2d-8a5c-4cee-a3f4-d25d4e23099f" />
+<img width="327" height="106" alt="image" src="https://github.com/user-attachments/assets/96995083-b2e2-48e4-a1e9-5364767b39ba" />
+
+
