@@ -4,8 +4,8 @@
 
 class DashboardAPI {
     constructor() {
-        // Usar la IP del servidor directamente
-        this.baseURL = 'http://10.10.3.171:3000/api';
+        // Detectar IP automáticamente
+        this.baseURL = `http://${window.location.hostname}:3000/api`;
         console.log('API Base URL:', this.baseURL);
     }
 
@@ -156,9 +156,16 @@ async function updatePrintJobsTable(filters = {}) {
                 <td>${job.job_id}</td>
                 <td>${job.user_id}</td>
                 <td>${job.printer_name}</td>
-                <td>${job.document_name || 'N/A'}</td>
+                <td title="${job.document_name || 'N/A'}">${job.document_name || 'N/A'}</td>
                 <td>${job.pages}</td>
-                <td>${new Date(job.timestamp).toLocaleString()}</td>
+                <td>${new Date(job.timestamp).toLocaleString('es-ES', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                })}</td>
             `;
             tableBody.appendChild(row);
         });
@@ -285,6 +292,124 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // =====================================================
+// FUNCIONES DE EXPORTACIÓN
+// =====================================================
+
+// Función para exportar trabajos de impresión a XLSX
+async function exportToExcel() {
+    try {
+        // Obtener la tabla actual
+        const tableBody = document.getElementById('print-jobs-tbody');
+        if (!tableBody || tableBody.children.length === 0) {
+            showNotification('No hay datos para exportar', 'warning');
+            return;
+        }
+
+        // Crear nuevo workbook y worksheet
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Trabajos de Impresión');
+
+        // Definir encabezados
+        const headers = [
+            'ID Trabajo',
+            'Usuario', 
+            'Impresora',
+            'Documento',
+            'Páginas',
+            'Fecha/Hora'
+        ];
+
+        // Agregar encabezados con estilos
+        const headerRow = worksheet.addRow(headers);
+        
+        // Aplicar estilos a la fila de encabezados
+        headerRow.eachCell((cell, colNumber) => {
+            // Estilo de celda
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFB366' } // Naranja claro - Porta Hnos
+            };
+            
+            // Estilo de fuente
+            cell.font = {
+                bold: true,
+                color: { argb: 'FF000000' }, // Negro para mejor contraste
+                size: 12
+            };
+            
+            // Alineación
+            cell.alignment = {
+                horizontal: 'center',
+                vertical: 'middle'
+            };
+            
+            // Bordes
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+            };
+        });
+
+        // Agregar filas de datos
+        const rows = tableBody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const rowData = [];
+            
+            cells.forEach((cell, index) => {
+                rowData.push(cell.textContent);
+            });
+            
+            const dataRow = worksheet.addRow(rowData);
+            
+            // Aplicar bordes a las celdas de datos
+            dataRow.eachCell((cell, colNumber) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+                    bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+                    left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+                    right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+                };
+            });
+        });
+
+        // Ajustar ancho de columnas
+        worksheet.getColumn(1).width = 12; // ID Trabajo
+        worksheet.getColumn(2).width = 20; // Usuario
+        worksheet.getColumn(3).width = 15; // Impresora
+        worksheet.getColumn(4).width = 50; // Documento
+        worksheet.getColumn(5).width = 10; // Páginas
+        worksheet.getColumn(6).width = 20; // Fecha/Hora
+
+        // Generar nombre de archivo con fecha actual
+        const now = new Date();
+        const day = now.getDate().toString().padStart(2, '0');
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const year = now.getFullYear().toString().slice(-2);
+        const fileName = `Trabajos de impresion ${day}-${month}-${year}.xlsx`;
+
+        // Generar y descargar archivo
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        showNotification('Archivo exportado correctamente', 'success');
+        
+    } catch (error) {
+        console.error('Error exportando a Excel:', error);
+        showNotification('Error al exportar el archivo', 'error');
+    }
+}
+
+// =====================================================
 // FUNCIONES DE NOTIFICACIÓN
 // =====================================================
 
@@ -336,6 +461,12 @@ function setupEventListeners() {
     const clearFiltersBtn = document.getElementById('clear-filters-btn');
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener('click', clearFilters);
+    }
+    
+    // Event listener para exportar a Excel
+    const exportBtn = document.getElementById('export-btn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToExcel);
     }
     
     // Event listeners para filtros con Enter

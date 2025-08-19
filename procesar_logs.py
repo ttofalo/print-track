@@ -4,6 +4,7 @@ Procesador de logs de CUPS para el Print Server
 Lee los logs y los mete en la BD MySQL
 Antes usaba archivos de texto, ahora usa BD
 Se puede ejecutar cada X minutos automáticamente
+AHORA TAMBIÉN EXTRAE NOMBRES REALES DE DOCUMENTOS DESDE ARCHIVOS DE CONTROL DE CUPS
 """
 
 import os
@@ -11,6 +12,9 @@ import pymysql
 import logging
 import time
 import argparse
+import glob
+import re
+import subprocess
 from datetime import datetime
 from typing import Set, List, Dict
 import sys
@@ -26,6 +30,7 @@ logging.basicConfig(
 
 # Configuración de archivos
 LOG_FILE = "/var/log/cups/page_log"  # Archivo de logs de CUPS
+CUPS_SPOOL_DIR = "/var/spool/cups"  # Directorio de archivos de control de CUPS
 PROCESSED_JOBS_FILE = "trabajos_procesados.txt"  # Archivo de compatibilidad
 
 # Configuración de la base de datos
@@ -80,6 +85,29 @@ class PrintServerDB:
         except pymysql.Error as err:
             logging.error(f"Error obteniendo trabajos procesados: {err}")
             return set()
+
+    def update_document_name(self, job_id: str, document_name: str):
+        """Actualizar el nombre del documento para un trabajo existente"""
+        try:
+            self.ensure_connection()
+            cursor = self.connection.cursor()
+            
+            query = "UPDATE print_jobs SET document_name = %s WHERE job_id = %s"
+            cursor.execute(query, (document_name, job_id))
+            
+            if cursor.rowcount > 0:
+                logging.info(f"Nombre de documento actualizado para trabajo {job_id}: {document_name}")
+                return True
+            else:
+                logging.warning(f"No se encontró trabajo {job_id} para actualizar nombre")
+                return False
+                
+        except pymysql.Error as err:
+            logging.error(f"Error actualizando nombre de documento para {job_id}: {err}")
+            return False
+        finally:
+            if cursor:
+                cursor.close()
 
     def insert_printer(self, name: str, ip_address: str = None, location: str = None):
         """Insertar o actualizar impresora"""
@@ -150,10 +178,83 @@ class PrintServerDB:
             logging.error(f"Error insertando trabajo de impresión: {err}")
             return False
 
+class CUPSControlFileParser:
+    """Parser para archivos de control de CUPS"""
+    
+    @staticmethod
+    def extract_job_info(control_file_path: str) -> Dict:
+        """Extraer información de un archivo de control de CUPS"""
+        try:
+            with open(control_file_path, 'rb') as f:
+                content = f.read().decode('utf-8', errors='ignore')
+            
+            job_info = {}
+            
+            # Extraer job-name (nombre del documento) - formato real de CUPS
+            job_name_match = re.search(r'job-name\s*([^\n\rB]+)', content, re.IGNORECASE)
+            if job_name_match:
+                job_name = job_name_match.group(1).strip()
+                if job_name and len(job_name) > 2:
+                    # Limpiar el nombre del documento
+                    job_name = re.sub(r'[^\w\s\-\.\(\)]', '', job_name).strip()
+                    if job_name:
+                        job_info['document_name'] = job_name
+                        logging.info(f"Nombre extraído: '{job_name}' desde archivo de control")
+            
+            # Extraer job-originating-user-name (usuario) - mejorar regex
+            user_match = re.search(r'job-originating-user-name([^B]*?)(?:B|$)', content)
+            if user_match:
+                user = user_match.group(1).strip()
+                if user and not user.startswith('Idocument-format'):
+                    job_info['user'] = user
+            
+            # Extraer job-id - buscar en el nombre del archivo también
+            filename = os.path.basename(control_file_path)
+            if filename.startswith('c') and filename[1:].isdigit():
+                job_info['job_id'] = filename[1:]  # Extraer número del nombre del archivo
+            
+            # También buscar job-id en el contenido
+            job_id_match = re.search(r'job-id(\d+)', content)
+            if job_id_match:
+                job_info['job_id'] = job_id_match.group(1)
+            
+            # Extraer printer-uri para obtener nombre de impresora - mejorar regex
+            printer_match = re.search(r'ipp://[^/]+/printers/([^B]*?)(?:B|$)', content)
+            if printer_match:
+                printer = printer_match.group(1).strip()
+                if printer and not printer.startswith('!'):
+                    job_info['printer'] = printer
+            
+            # Limpiar valores extraídos
+            for key, value in job_info.items():
+                if isinstance(value, str):
+                    # Remover caracteres extraños y espacios
+                    value = re.sub(r'[^\w\s\-\.]', '', value).strip()
+                    
+                    # Para nombres de documentos, remover metadatos adicionales
+                    if key == 'document_name':
+                        # Remover cualquier texto después de caracteres especiales comunes
+                        value = re.sub(r'Idocument-format.*$', '', value).strip()
+                        value = re.sub(r'job-priority.*$', '', value).strip()
+                        value = re.sub(r'job-uuid.*$', '', value).strip()
+                        value = re.sub(r'\s+', ' ', value).strip()  # Normalizar espacios
+                    
+                    if value:
+                        job_info[key] = value
+                    else:
+                        del job_info[key]
+            
+            return job_info
+            
+        except Exception as e:
+            logging.warning(f"Error parseando archivo de control {control_file_path}: {e}")
+            return {}
+
 class CUPSLogProcessor:
     def __init__(self, db: PrintServerDB):
         self.db = db
         self.processed_jobs = self.db.get_processed_jobs()
+        self.control_parser = CUPSControlFileParser()
 
     def parse_log_line(self, line: str) -> Dict:
         """Parsear una línea del log de CUPS"""
@@ -196,7 +297,7 @@ class CUPSLogProcessor:
                 'job_id': job_id,
                 'pages': pages,
                 'timestamp': timestamp,
-                'document': f"Documento {job_id}",
+                'document': f"Documento {job_id}",  # Placeholder, se actualizará después
                 'copies': 1,
                 'status': 'completed'
             }
@@ -204,6 +305,67 @@ class CUPSLogProcessor:
         except (ValueError, IndexError) as e:
             logging.warning(f"Error parseando línea: {line[:50]}... - {e}")
             return None
+
+    def process_cups_control_files(self):
+        """Procesar archivos de control de CUPS para obtener nombres reales de documentos"""
+        try:
+            # Buscar archivos de control de CUPS usando find
+            try:
+                # Si estamos ejecutando como root, no usar sudo
+                if os.geteuid() == 0:
+                    result = subprocess.run(['find', CUPS_SPOOL_DIR, '-name', 'c*', '-type', 'f'], 
+                                          capture_output=True, text=True, timeout=10)
+                else:
+                    result = subprocess.run(['sudo', 'find', CUPS_SPOOL_DIR, '-name', 'c*', '-type', 'f'], 
+                                          capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    control_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+                else:
+                    logging.warning(f"Error ejecutando find: {result.stderr}")
+                    control_files = []
+            except Exception as e:
+                logging.warning(f"Error buscando archivos de control: {e}")
+                control_files = []
+            
+            if not control_files:
+                logging.info("No se encontraron archivos de control de CUPS")
+                return
+            
+            logging.info(f"Procesando {len(control_files)} archivos de control de CUPS...")
+            
+            # Debug: mostrar contenido de algunos archivos
+            if control_files:
+                sample_file = control_files[0]
+                try:
+                    with open(sample_file, 'rb') as f:
+                        sample_content = f.read(500).decode('utf-8', errors='ignore')
+                    logging.info(f"Contenido de muestra del archivo {sample_file}:")
+                    logging.info(f"Primeros 500 bytes: {sample_content}")
+                except Exception as e:
+                    logging.warning(f"No se pudo leer archivo de muestra: {e}")
+            
+            updated_count = 0
+            for control_file in control_files:
+                try:
+                    job_info = self.control_parser.extract_job_info(control_file)
+                    
+                    if job_info.get('job_id') and job_info.get('document_name'):
+                        # Normalizar job_id: remover ceros a la izquierda
+                        job_id = str(int(job_info['job_id']))
+                        
+                        # Actualizar nombre del documento en la base de datos
+                        if self.db.update_document_name(job_id, job_info['document_name']):
+                            updated_count += 1
+                            
+                except Exception as e:
+                    logging.warning(f"Error procesando archivo {control_file}: {e}")
+                    continue
+            
+            logging.info(f"Actualizados {updated_count} nombres de documentos desde archivos de control")
+            
+        except Exception as e:
+            logging.error(f"Error procesando archivos de control de CUPS: {e}")
 
     def process_log_file(self, log_file_path: str):
         """Procesar archivo de log completo"""
@@ -226,15 +388,20 @@ class CUPSLogProcessor:
                     
                     # Verificar si ya fue procesado
                     if job_data['job_id'] not in self.processed_jobs:
+                        # Insertar trabajo inmediatamente (con nombre genérico)
                         if self.db.insert_print_job(job_data):
                             self.processed_jobs.add(job_data['job_id'])
                             nuevos_trabajos += 1
-                    
-                    # Mostrar progreso cada 1000 líneas
-                    if line_num % 1000 == 0:
-                        logging.info(f"Procesadas {line_num} líneas...")
+                            logging.info(f"Trabajo {job_data['job_id']} insertado con nombre genérico, se actualizará después")
+                        
+                        # Mostrar progreso cada 1000 líneas
+                        if line_num % 1000 == 0:
+                            logging.info(f"Procesadas {line_num} líneas...")
+                
+                logging.info(f"Procesamiento completado: {nuevos_trabajos} trabajos nuevos agregados")
             
-            logging.info(f"Procesamiento completado: {nuevos_trabajos} trabajos nuevos agregados")
+            # Después de procesar el log, procesar archivos de control para actualizar nombres
+            self.process_cups_control_files()
                 
         except Exception as e:
             logging.error(f"Error procesando archivo de log: {e}")
@@ -281,7 +448,11 @@ def main():
 
 def monitor_logs(processor, interval_minutes):
     """Ejecutar monitoreo continuo de logs"""
-    interval_seconds = interval_minutes * 60
+    # Si el intervalo es menor a 1, tratarlo como segundos
+    if interval_minutes < 1:
+        interval_seconds = interval_minutes * 60
+    else:
+        interval_seconds = interval_minutes * 60
     
     try:
         while True:
