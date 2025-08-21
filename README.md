@@ -265,8 +265,8 @@ groups sistemas
 
 **Sistema Verificado**: Red Hat Enterprise Linux 10.0 (Coughlan)  
 **Versión del Software**: Print Server Dashboard v6  
-**Estado**: ✅ INSTALACIÓN COMPLETADA EXITOSAMENTE  
 **Última Actualización**: 19 de Agosto de 2025 - Configurado específicamente para RHEL/AlmaLinux
+
 
 
 
