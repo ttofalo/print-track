@@ -1,4 +1,4 @@
-# Print Server Dashboard v6 - Red Hat Enterprise Linux / AlmaLinux
+# Print Server Dashboard v7 - Red Hat Enterprise Linux / AlmaLinux
 
 Sistema completo de monitoreo de impresiones para servidores CUPS con interfaz web, base de datos MariaDB y monitoreo en tiempo real del estado de impresoras.
 
@@ -10,7 +10,7 @@ Sistema completo de monitoreo de impresiones para servidores CUPS con interfaz w
 - Estado de impresoras con monitoreo automático por ping
 - Reporte XLSX de trabajos de impresión
 - Nombres de documentos capturados automáticamente
-- Interfaz responsive y moderna
+- Interfaz 
 - **Servicios automáticos** para funcionamiento 24/7
 - **Inicio automático** al arrancar el sistema
 
@@ -22,30 +22,38 @@ Frontend (HTML/CSS/JS) ↔ Backend (Node.js) ↔ Database (MariaDB)
                     Python (Log Parser + Monitor)
 ```
 
-## Estructura del Proyecto
+## Estructura del Proyecto 
 
 ```
 print-track/
 ├── server.js               # Servidor principal Node.js
 ├── index.html              # Dashboard principal
 ├── login.html              # Sistema de autenticación
-├── script.js               # Frontend JavaScript
+├── script.js               # Frontend JavaScript 
 ├── style.css               # Estilos principales
 ├── printer-status.js       # Monitor de estado de impresoras
 ├── printer-status.css      # Estilos del monitor de impresoras
 ├── procesar_logs.py        # Procesador de logs CUPS
-├── auto_monitor.py         # Monitor automático
 ├── database_setup.sql      # Estructura de base de datos
 ├── package.json            # Dependencias Node.js
 ├── check_status_redhat.sh  # Script de verificación para RHEL
-├── nginx.conf              # Configuración Nginx (opcional)
+├── log-processor.service   # Servicio systemd para procesar logs
+├── log-processor.timer     # Timer para ejecución automática cada 20s
+├── print-server.service    # Servicio del dashboard 
+├── porta_hnos.png          # Logo de la empresa
+├── porta_icon.png          # Icono 
 └── README.md
 ```
+
+**Funcionalidades :**
+-  Monitoreo de impresoras: Solo `printer-status.js` (frontend) + `server.js` (backend)
+-  Procesamiento de logs: Solo `log-processor.timer` (cada 20 segundos)
+-  Verificación de estado: Solo `check_status_redhat.sh` (específico para RHEL)
 
 ## Instalación en Red Hat Enterprise Linux / AlmaLinux
 
 ### Prerrequisitos
-- **Red Hat Enterprise Linux 8/9/10** o **AlmaLinux 8/9/10** (Verificado en RHEL 10.0, compatible con AlmaLinux)
+- **AlmaLinux 9.6** 
 - Python 3.8+
 - Node.js 16+
 - MariaDB 10.11+ (compatible con MySQL)
@@ -125,62 +133,43 @@ sudo firewall-cmd --reload
 ```
 
 ### 7. Configurar Servicios Automáticos del Sistema
+
+**✅ IMPORTANTE: Los archivos de servicio ya están en el proyecto**
+
+#### A) Servicio del Dashboard (YA CONFIGURADO CORRECTAMENTE)
 ```bash
-# Crear servicio del servidor principal
-sudo tee /etc/systemd/system/print-server.service << 'EOF'
-[Unit]
-Description=Print Server Dashboard
-After=network.target mariadb.service
-Wants=mariadb.service
+# El archivo print-server.service ya tiene la configuración correcta
+# Copiar al sistema:
+sudo cp print-server.service /etc/systemd/system/
 
-[Service]
-Type=simple
-User=sistemas
-WorkingDirectory=/home/sistemas/print-track
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Crear servicio para procesador de logs
-sudo tee /etc/systemd/system/log-processor.service << 'EOF'
-[Unit]
-Description=CUPS Log Processor
-After=mariadb.service
-Wants=mariadb.service
-
-[Service]
-Type=oneshot
-User=sistemas
-WorkingDirectory=/home/sistemas/print-track
-ExecStart=/home/sistemas/print-track/venv/bin/python procesar_logs.py
-StandardOutput=journal
-StandardError=journal
-EOF
-
-# Crear timer para ejecución automática
-sudo tee /etc/systemd/system/log-processor.timer << 'EOF'
-[Unit]
-Description=Run CUPS log processor every 5 minutes
-Requires=log-processor.service
-
-[Timer]
-OnBootSec=1min
-OnUnitActiveSec=5min
-Unit=log-processor.service
-
-[Install]
-WantedBy=timers.target
-EOF
-
-# Habilitar y iniciar servicios
+# Habilitar e iniciar el servicio:
 sudo systemctl daemon-reload
-sudo systemctl enable print-server log-processor.timer
-sudo systemctl start print-server log-processor.timer
+sudo systemctl enable print-server
+sudo systemctl start print-server
+```
+
+#### B) Servicio del Procesador de Logs (YA CONFIGURADO)
+```bash
+# Copiar el servicio del proyecto al sistema
+sudo cp log-processor.service /etc/systemd/system/
+sudo cp log-processor.timer /etc/systemd/system/
+
+# Habilitar e iniciar servicios
+sudo systemctl daemon-reload
+sudo systemctl enable log-processor.timer
+sudo systemctl start log-processor.timer
+```
+
+#### C) Verificar Configuración de Servicios
+```bash
+# Verificar que los servicios estén configurados correctamente
+sudo systemctl status print-server
+sudo systemctl status log-processor.timer
+sudo systemctl status log-processor.service
+
+# Si hay errores, verificar logs:
+sudo journalctl -u print-server -f
+sudo journalctl -u log-processor.service -f
 ```
 
 ### 8. Verificar Instalación
@@ -206,8 +195,8 @@ sudo systemctl status log-processor.timer
 
 ## Monitoreo
 
-- **Logs CUPS**: Procesamiento automático cada 5 minutos
-- **Estado de impresoras**: Ping automático cada 30 segundos
+- **Logs CUPS**: Procesamiento automático cada 20 segundos (log-processor.timer)
+- **Estado de impresoras**: Ping automático desde el frontend (printer-status.js)
 - **Estadísticas**: Actualización en tiempo real
 - **Servicios**: Inicio automático al arrancar el sistema
 
@@ -218,14 +207,6 @@ sudo systemctl status log-processor.timer
 - **Estado de servicios**: `./check_status_redhat.sh`
 - **Logs de CUPS**: `sudo journalctl -u cups -f`
 
-## Diferencias con Ubuntu/Debian
-
-1. **Gestor de paquetes**: `dnf` en lugar de `apt`
-2. **Base de datos**: `mariadb-server` en lugar de `mysql-server`
-3. **Configuración CUPS**: Logs se configuran manualmente
-4. **Certificados SSL**: Pueden requerir configuración adicional
-5. **Permisos**: Estructura de directorios puede variar
-6. **Servicios**: Configuración específica de systemd para RHEL/AlmaLinux
 
 ## Verificación Final
 
@@ -241,31 +222,29 @@ sudo systemctl status cups
 
 # Verificar permisos de usuario
 groups sistemas
+
+# Verificar que el procesador de logs esté funcionando
+sudo systemctl status log-processor.timer
+
+# Verificar que el dashboard esté funcionando
+sudo systemctl status print-server
 ```
-
-## Características Específicas de RHEL/AlmaLinux
-
-- **Sistema de servicios**: systemd con dependencias correctas
-- **Base de datos**: MariaDB 10.11+ con compatibilidad MySQL
-- **Firewall**: firewalld con configuración específica
-- **Permisos**: SELinux y grupos de usuarios estándar
-- **Logs**: journald para servicios del sistema
-- **Inicio automático**: Servicios configurados para arrancar con el sistema
 
 ## Interfaces
 
 <img width="1552" height="903" alt="{C6591F5E-77EF-4936-B203-B96EE2F28C5B}" src="https://github.com/user-attachments/assets/96403dc1-41c5-4457-b132-9e60c478134d" />
 <img width="1721" height="909" alt="image" src="https://github.com/user-attachments/assets/06402dcc-f152-4f32-8698-e4cdbb545ed3" />
-<img width="910" height="696" alt="image" src="https://github.com/user-attachments/assets/452f6654-7e0a-43f5-a428-3f3ff3c250e6" />
-<img width="1397" height="907" alt="image" src="https://github.com/user-attachments/assets/ab028c2d-8a5c-4cee-a3f4-d25d4e230ed1" />
+<img width="910" height="696" alt="image" src="https://github.com/user-attachments/assets/452f2f54-7e0a-43f5-a428-3f3ff3c250e6" />
+<img width="1397" height="907" alt="image" src="https://github.com/user-attachments/assets/ab0282d-8a5c-4cee-a3f4-d25d4e230ed1" />
 <img width="318" height="557" alt="image" src="https://github.com/user-attachments/assets/ab0282d-8a5c-4cee-a3f4-d25d4e230ed1" />
 <img width="327" height="106" alt="image" src="https://github.com/user-attachments/assets/96995083-b2e2-48e4-a1e9-5364767b39ba" />
 
 ---
 
-**Sistema Verificado**: Red Hat Enterprise Linux 10.0 (Coughlan)  
-**Versión del Software**: Print Server Dashboard v6  
-**Última Actualización**: 19 de Agosto de 2025 - Configurado específicamente para RHEL/AlmaLinux
+**Sistema Verificado**: Red Hat Enterprise Linux 9.6 
+**Versión del Software**: Print Server Dashboard v7 
+**Última Actualización**: 25 de Agosto de 2025 - Proyecto optimizado para RHEL/AlmaLinux
+**Dev**: Tobias Tofalo -  www.linkedin.com/in/tobiastofalo
 
 
 
