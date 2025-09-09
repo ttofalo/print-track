@@ -5,11 +5,11 @@ echo "  VERIFICACIÓN DE INSTALACIÓN - RED HAT"
 echo "=========================================="
 echo ""
 
-# Colores para output
+# Colores para el output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m' 
 
 # Función para mostrar estado
 show_status() {

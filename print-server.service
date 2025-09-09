@@ -5,8 +5,8 @@ Wants=mariadb.service
 
 [Service]
 Type=simple
-User=sistemas
-WorkingDirectory=/home/sistemas/print-track
+User=cupsadmin
+WorkingDirectory=/home/cupsadmin/print-track
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10

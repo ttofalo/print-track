@@ -4,10 +4,10 @@ After=network.target cups.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /home/sistemas/print-track/procesar_logs.py
-WorkingDirectory=/home/sistemas/print-track
-User=root
-Group=root
+ExecStart=/usr/bin/python3 /home/cupsadmin/print-track/procesar_logs.py
+WorkingDirectory=/home/cupsadmin/print-track
+User=cupsadmin
+Group=cupsadmin
 StandardOutput=journal
 StandardError=journal
 

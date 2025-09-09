@@ -10,7 +10,7 @@ const port = process.env.PORT || 3000;
 const dbConfig = {
   host: 'localhost',
   user: 'print_user',
-  password: 'Por7a*sis', // Contraseña segura para producción
+  password: 'Por7a*sis',
   database: 'print_server_db',
   waitForConnections: true,
   connectionLimit: 10,
@@ -23,7 +23,7 @@ const pool = mysql.createPool(dbConfig);
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.')); // Servir archivos estáticos desde el directorio actual
+app.use(express.static('.')); 
 
 // Middleware de logging
 app.use((req, res, next) => {
@@ -191,18 +191,55 @@ app.get('/api/print-jobs', async (req, res) => {
   }
 });
 
+// Función para obtener la lista de impresoras
+function getPrintersList() {
+  return [
+    { id: 'PHARI018', ip: '10.10.64.17', location: 'PARQUE TANQUES' },
+    { id: 'PHARI019', ip: '10.10.64.66', location: 'RECEPCION GRANOS' },
+    { id: 'PHARI030', ip: '10.10.64.16', location: 'RECEPCION GRANOS' },
+    { id: 'PHARI038', ip: '10.10.64.30', location: 'SISTEMAS' },
+    { id: 'PHARI001', ip: '10.10.64.4', location: 'LABORATORIO PLANTA DE ALCOHOL' },
+    { id: 'PHARI038', ip: '10.10.64.17', location: 'SISTEMAS' },
+    { id: 'PHARI025', ip: '10.10.64.63', location: 'INGENIERÍA' },
+    { id: 'PHARI026', ip: '10.10.64.65', location: 'INGENIERÍA' },
+    { id: 'PHARI056', ip: '10.10.64.20', location: 'LIDERES CALIDAD' },
+    { id: 'PHARI066', ip: '10.10.64.10', location: 'OFICINA LIDERES DE CALIDAD' },
+    { id: 'PHARI004', ip: '10.10.64.25', location: 'DOMI SANITARIO' },
+    { id: 'PHARI024', ip: '10.10.64.64', location: 'INGENIERIA (RICOH)' },
+    { id: 'PHARI031', ip: '10.10.64.22', location: 'ADUANA' },
+    { id: 'PHARI039', ip: '10.10.64.29', location: 'BEATO' },
+    { id: 'PHARI061', ip: '10.10.64.28', location: 'DOMI SANITARIO' },
+    { id: 'PHARI062', ip: '10.10.64.6', location: 'E-COMMERCE DOMI' },
+    { id: 'PHARI014', ip: '10.10.64.15', location: 'OFICINA MANTENIMIENTO' },
+    { id: 'PHARI048', ip: '10.10.64.27', location: 'OFICINA PLANTA PROTEINAS' },
+    { id: 'PHARI023', ip: '10.10.64.36', location: 'PAÑOL' },
+    { id: 'PHARI015', ip: '10.10.64.13', location: 'PRODUCCION - BIO 1' },
+    { id: 'PHARI016', ip: '10.10.64.209', location: 'IRIS' },
+    { id: 'PHARI065', ip: '10.10.64.31', location: 'CAPITAL HUMANO' },
+    { id: 'PHARI033', ip: '10.10.64.24', location: 'ADMINISTRACIÓN' },
+    { id: 'PHARI036', ip: '10.10.64.3', location: 'ADMINISTRACION' },
+    { id: 'PHARI017', ip: '10.10.64.8', location: 'ADMINISTRACION' },
+    { id: 'PHARI003', ip: '10.10.64.7', location: 'RECEPCION EDIFICIO ADMINISTRACIÓN' },
+    { id: 'PHARI002', ip: '10.10.64.18', location: 'LOGÍSTICA DE EXPEDICIÓN' },
+    { id: 'PHARI028', ip: '10.10.64.14', location: 'SOPLADORA' },
+    { id: 'PHARI005', ip: '10.10.64.2', location: 'CALIDAD' },
+    { id: 'PHARI008', ip: '10.10.64.5', location: 'MARKETING' },
+    { id: 'PHARI012', ip: '10.10.64.9', location: 'ADMINISTRACIÓN' },
+    { id: 'PHARI064', ip: '10.10.64.21', location: 'PRODUCCION - BIO 2' },
+    { id: 'PHARI013', ip: '10.10.64.202', location: 'PRODUCTO TERMINADO' }
+  ];
+}
+
 // Endpoint para obtener todas las impresoras
 app.get('/api/printers', async (req, res) => {
   try {
-    const connection = await pool.getConnection();
-    
-    const [printers] = await connection.execute(`
-      SELECT id, name, ip_address, location, model
-      FROM printers
-      ORDER BY name
-    `);
-    
-    connection.release();
+    const printers = getPrintersList().map(printer => ({
+      id: printer.id,
+      name: printer.id,
+      ip_address: printer.ip,
+      location: printer.location,
+      model: null
+    }));
     
     res.json(printers);
     
@@ -223,35 +260,7 @@ app.get('/api/printers/status', async (req, res) => {
     const execAsync = promisify(exec);
     
     // Lista de impresoras con sus IPs
-    const printers = [
-      { id: 'PHARI064', ip: '10.10.64.30', location: 'SISTEMAS' },
-      { id: 'PHARI019', ip: '10.10.64.66', location: 'RECEPCION GRANOS' },
-      { id: 'PHARI030', ip: '10.10.64.16', location: 'RECEPCION GRANOS' },
-      { id: 'PHARI029', ip: '10.10.64.21', location: 'OFI PLANTA ALCOHOL' },
-      { id: 'PHARI001', ip: '10.10.64.4', location: 'LABORATORIO PLANTA DE ALCOHOL' },
-      { id: 'PHARI038', ip: '10.10.64.17', location: 'DESPACHO DE CAMIONES' },
-      { id: 'PHARI025', ip: '10.10.64.63', location: 'INGENIERÍA' },
-      { id: 'PHARI026', ip: '10.10.64.65', location: 'INGENIERÍA' },
-      { id: 'PHARI056', ip: '10.10.64.20', location: 'LABORATORIO ALCOHOL' },
-      { id: 'PHARI066', ip: '10.10.64.10', location: 'OFICINA LIDERES DE CALIDAD' },
-      { id: 'PHARI014', ip: '10.10.64.15', location: 'OFICINA MANTENIMIENTO' },
-      { id: 'PHARI048', ip: '10.10.64.27', location: 'OFICINA DE PROTEINAS' },
-      { id: 'PHARI023', ip: '10.10.64.36', location: 'PAÑOL' },
-      { id: 'PHARI015', ip: '10.10.64.13', location: 'PRODUCCION - BIO 1' },
-      { id: 'PHARI016', ip: '10.10.64.238', location: 'IRIS' },
-      { id: 'PHARI065', ip: '10.10.64.31', location: 'CAPITAL HUMANO' },
-      { id: 'PHARI033', ip: '10.10.64.24', location: 'ADMINISTRACIÓN' },
-      { id: 'PHARI036', ip: '10.10.64.99', location: 'ADMINISTRACION' },
-      { id: 'PHARI017', ip: '10.10.64.8', location: 'ADMINISTRACION' },
-      { id: 'PHARI003', ip: '10.10.64.7', location: 'RECEPCION EDIFICIO ADMINISTRACIÓN' },
-      { id: 'PHARI002', ip: '10.10.64.18', location: 'LOGÍSTICA DE EXPEDICIÓN' },
-      { id: 'PHARI028', ip: '10.10.64.14', location: 'FRACCIONAMIENTO' },
-      { id: 'PHARI005', ip: '10.10.64.2', location: 'CALIDAD' },
-      { id: 'PHARI008', ip: '10.10.64.5', location: 'MARKETING' },
-      { id: 'PHARI011', ip: '10.10.209.7', location: 'ADMINISTRACION' },
-      { id: 'PHARI012', ip: '10.10.64.9', location: 'ADMINISTRACIÓN' },
-      { id: 'PHARI064-SOBRE', ip: '10.10.64.202', location: 'SOBREROTULADO' }
-    ];
+    const printers = getPrintersList();
     
     // Función para hacer ping a una IP
     async function pingPrinter(ip) {
@@ -385,11 +394,11 @@ async function startServer() {
     process.exit(1);
   }
   
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`✓ Servidor ejecutándose en http://0.0.0.0:${port}`);
-    console.log(`📊 Dashboard disponible en http://localhost:${port}`);
-    console.log(`🔧 API disponible en http://localhost:${port}/api`);
-    console.log(`💚 Health check: http://localhost:${port}/api/health`);
+  app.listen(port, '10.10.16.13', () => {
+    console.log(`✓ Servidor ejecutándose en http://10.10.16.13:${port}`);
+    console.log(`📊 Dashboard disponible en http://10.10.16.13:${port}`);
+    console.log(`🔧 API disponible en http://10.10.16.13:${port}/api`);
+    console.log(`💚 Health check: http://10.10.16.13:${port}/api/health`);
   });
 }
 

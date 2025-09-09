@@ -1,6 +1,4 @@
-// =====================================================
-// PRINT SERVER DASHBOARD - FRONTEND
-// =====================================================
+
 
 class DashboardAPI {
     constructor() {
@@ -485,6 +483,8 @@ function setupEventListeners() {
         printerSelect.addEventListener('change', applyFilters);
     }
 }
+
+
 
 // =====================================================
 // ESTILOS ADICIONALES

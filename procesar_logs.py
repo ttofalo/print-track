@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 """
 Procesador de logs de CUPS para el Print Server
-Lee los logs y los mete en la BD MySQL
-Antes usaba archivos de texto, ahora usa BD
-Se puede ejecutar cada X minutos automáticamente
-AHORA TAMBIÉN EXTRAE NOMBRES REALES DE DOCUMENTOS DESDE ARCHIVOS DE CONTROL DE CUPS
+Lee los logs y los mete en la BD MariaDB
 
-CONFIGURADO PARA FUNCIONAR COMO EN UBUNTU SERVER:
+CONFIGURADO PARA FUNCIONAR COMO EN  SERVER RHEL:
 - Usa archivo de log legacy: /var/log/cups/page_log
-- Extrae páginas y nombres de archivo directamente del log
-- Procesa archivos de control de CUPS para información adicional
+- Extrae páginas y nombres de archivo directamente de los archivos de control de CUPS
 """
 
 import os
@@ -34,8 +30,7 @@ logging.basicConfig(
 # Configuración de archivos
 LOG_FILE = "/var/log/cups/page_log"  # Archivo de logs de CUPS (legacy)
 CUPS_SPOOL_DIR = "/var/spool/cups"  # Directorio de archivos de control de CUPS
-PROCESSED_JOBS_FILE = "trabajos_procesados.txt"  # Archivo de compatibilidad
-USE_JOURNAL = False  # Usar archivo de log legacy como en Ubuntu Server
+USE_JOURNAL = False  # Usar archivo de log legacy. 
 
 # Configuración de la base de datos
 DB_CONFIG = {
@@ -230,25 +225,51 @@ class CUPSControlFileParser:
             # Buscar múltiples patrones para el nombre del documento
             job_name = None
             
-            # Patrón 1: job-name estándar
-            job_name_match = re.search(r'job-name\s*([^\n\rB]+)', content, re.IGNORECASE)
+            # Patrón 1: job-name estándar - más flexible
+            job_name_match = re.search(r'job-name\s*([^\n\rB!]+)', content, re.IGNORECASE)
             if job_name_match:
                 job_name = job_name_match.group(1).strip()
+                # Limpiar solo caracteres muy problemáticos
+                job_name = re.sub(r'[^\w\s\-\.\(\)]', '', job_name).strip()
             
-            # Patrón 2: buscar en formato CUPS específico
+            # Patrón 2: buscar en formato CUPS específico - múltiples tipos de archivo
             if not job_name or len(job_name) < 3:
-                cups_name_match = re.search(r'([A-Za-z0-9\s\-\.\(\)]+\.pdf)', content)
-                if cups_name_match:
-                    job_name = cups_name_match.group(1).strip()
+                # Buscar diferentes tipos de archivos comunes
+                file_patterns = [
+                    r'([A-Za-z0-9\s\-\.\(\)]+\.pdf)',      # PDF
+                    r'([A-Za-z0-9\s\-\.\(\)]+\.docx?)',    # Word (.doc, .docx)
+                    r'([A-Za-z0-9\s\-\.\(\)]+\.xlsx?)',    # Excel (.xls, .xlsx)
+                    r'([A-Za-z0-9\s\-\.\(\)]+\.pptx?)',    # PowerPoint (.ppt, .pptx)
+                    r'([A-Za-z0-9\s\-\.\(\)]+\.txt)',      # Texto
+                    r'([A-Za-z0-9\s\-\.\(\)]+\.rtf)',      # Rich Text
+                ]
+                
+                for pattern in file_patterns:
+                    cups_name_match = re.search(pattern, content, re.IGNORECASE)
+                    if cups_name_match:
+                        job_name = cups_name_match.group(1).strip()
+                        break
             
-            # Patrón 3: buscar nombres de documentos comunes
+            # Patrón 3: buscar nombres de documentos comunes (sin extensión)
             if not job_name or len(job_name) < 3:
-                doc_name_match = re.search(r'([A-Za-z0-9\s\-\.\(\)]{5,50})', content)
-                if doc_name_match:
-                    potential_name = doc_name_match.group(1).strip()
-                    # Filtrar nombres que parezcan documentos reales
-                    if not any(x in potential_name.lower() for x in ['job-', 'printer-', 'document-format', 'stdin', 'copies']):
-                        job_name = potential_name
+                # Buscar nombres que parezcan documentos reales (sin metadatos de CUPS)
+                doc_patterns = [
+                    r'job-name\s*([A-Za-z0-9\s\-\.\(\)]{5,50})',  # Después de job-name
+                    r'([A-Za-z][A-Za-z0-9\s\-\.\(\)]{4,40})',    # Nombres que empiecen con letra
+                ]
+                
+                for pattern in doc_patterns:
+                    doc_name_match = re.search(pattern, content, re.IGNORECASE)
+                    if doc_name_match:
+                        potential_name = doc_name_match.group(1).strip()
+                        # Aceptar cualquier nombre que tenga sentido
+                        if (potential_name and 
+                            len(potential_name) > 2 and
+                            not any(x in potential_name.lower() for x in [
+                                'job-', 'printer-', 'document-format', 'stdin', 'copies'
+                            ])):
+                            job_name = potential_name
+                            break
             
             if job_name and len(job_name) > 2:
                 # Limpiar el nombre del documento
@@ -317,9 +338,7 @@ class CUPSLogProcessor:
             # Buscar líneas que contengan información de trabajos completados
             if 'total' not in line:
                 return None
-            
-            # El formato real es: ago 22 14:22:38 AlmaLinux-9.6-Print-Server cupsd[727]: PHARI018 ph03272 2 [22/Aug/2025:14:22:38 -0300] total 1 - 10.10.3.91 escaneo (1).pdf - -
-            
+                        
             # Buscar la parte que contiene la información del trabajo (después de "cupsd[727]: ")
             if 'cupsd[' not in line:
                 return None
@@ -330,9 +349,7 @@ class CUPSLogProcessor:
             
             if len(parts) < 6:
                 return None
-            
-            # Ahora parts contiene: ['PHARI018', 'ph03272', '2', '[22/Aug/2025:14:22:38', '-0300]', 'total', '1', '-', '10.10.3.91', 'escaneo', '(1).pdf', '-', '-']
-            
+                        
             printer = parts[0]  # PHARI018
             user = parts[1]     # ph03272
             job_id = parts[2]   # 2
@@ -351,11 +368,9 @@ class CUPSLogProcessor:
                     pages = 1
                     logging.warning(f"No se pudo parsear páginas del journal, usando valor por defecto: {pages}")
             
-            # Extraer nombre del documento (después de la IP)
+            # Extraer nombre del documento 
             document = f"Documento {job_id}"  # Placeholder por defecto
             if len(parts) >= 10:
-                # El nombre del documento está después de la IP
-                # Buscar el nombre real del documento de forma genérica
                 doc_parts = []
                 i = 9  # Empezar después de la IP
                 
@@ -418,10 +433,10 @@ class CUPSLogProcessor:
             user = parts[1]     # %u - usuario
             job_id = parts[2]   # %j - job-id
             
-            # Extraer fecha y hora del formato [22/Aug/2025:22:45:00 -0300]
+            # Extraer fecha y hora del formato [27/Aug/2025:13:30:28 -0300]
             # La fecha puede estar en una o dos partes dependiendo de si hay zona horaria
             date_time_part = parts[3].strip("[]")
-            if len(parts) > 4 and parts[4].startswith("-") or parts[4].startswith("+"):
+            if len(parts) > 4 and (parts[4].startswith("-") or parts[4].startswith("+")):
                 # Hay zona horaria separada, combinar fecha y zona
                 date_time_str = date_time_part + " " + parts[4]
                 # Saltar la zona horaria en el siguiente procesamiento
@@ -431,50 +446,54 @@ class CUPSLogProcessor:
                 date_time_str = date_time_part
                 timezone_offset = 0
             
-            # Extraer nombre del documento - está entre comillas después de la fecha
-            document = f"Documento {job_id}"  # Placeholder por defecto
-            doc_pos = 4 + timezone_offset
-            if len(parts) > doc_pos:
-                # El nombre del documento está entre comillas
-                doc_name = parts[doc_pos].strip('"')
-                if doc_name and doc_name != "-":
-                    document = doc_name
-                    # Sin logging para reducir verbosidad
-            
-            # Extraer copias - después del nombre del documento
-            copies = 1  # Por defecto
-            copies_pos = doc_pos + 1
-            if len(parts) > copies_pos:
-                try:
-                    copies = int(parts[copies_pos])
-                except (ValueError, IndexError):
-                    copies = 1
-            
-            # Extraer páginas - están en la última posición (job-media-sheets-completed)
+            # Extraer páginas del formato "total 1" - está después de la fecha
             pages = 1  # Por defecto
-            if len(parts) >= 7:  # Necesitamos al menos 7 partes
+            total_pos = 4 + timezone_offset
+            if len(parts) > total_pos and parts[total_pos] == "total":
                 try:
-                    # Las páginas están en la última posición (parts[6])
-                    page_value = parts[6]
-                    if page_value.isdigit():
-                        pages = int(page_value)
-                    else:
-                        # Si no es un número, buscar en la posición anterior (parts[5])
-                        if parts[5].isdigit():
-                            pages = int(parts[5])
-                        else:
-                            pages = 1
-                            logging.warning(f"No se pudo parsear páginas, usando valor por defecto: {pages}")
+                    pages = int(parts[total_pos + 1])
+                    logging.info(f"Páginas extraídas del log: {pages}")
                 except (ValueError, IndexError):
                     pages = 1
-                    logging.warning(f"No se pudo parsear páginas, usando valor por defecto: {pages}")
-            else:
-                pages = 1
-                logging.warning(f"Línea muy corta, usando valor por defecto para páginas: {pages}")
+                    logging.warning(f"No se pudo parsear páginas del formato 'total X', usando valor por defecto: {pages}")
+            
+            # Extraer nombre del documento - está después de "total X -"
+            document = f"Documento {job_id}"  
+            doc_pos = total_pos + 3  
+            if len(parts) > doc_pos:
+                # El nombre del documento está después de la IP del cliente
+                doc_parts = []
+                i = doc_pos
+                
+                # Recopilar el nombre del documento hasta encontrar "one-sided" o el final
+                while i < len(parts) and parts[i] not in ["one-sided", "two-sided"]:
+                    doc_parts.append(parts[i])
+                    i += 1
+                
+                if doc_parts:
+                    
+                    filtered_parts = []
+                    for part in doc_parts:
+
+                        if not re.match(r'^\d+\.\d+\.\d+\.\d+$', part):
+                            filtered_parts.append(part)
+                    
+                    if filtered_parts:
+                        document = " ".join(filtered_parts)
+                        logging.info(f"Nombre del documento extraído (sin IP): '{document}'")
+                    else:
+                        # Si solo quedó la IP, usar nombre por defecto
+                        document = f"Documento {job_id}"
+                        logging.info(f"Usando nombre por defecto (solo IP encontrada): {document}")
+                else:
+                    # Si no se pudo extraer, usar "Documento N"
+                    document = f"Documento {job_id}"
+                    logging.info(f"Usando nombre por defecto: {document}")
+            
+            copies = 1
             
             # Parsear fecha
             try:
-                # Formato: "22/Aug/2025:22:45:00"
                 timestamp = datetime.strptime(date_time_str, "%d/%b/%Y:%H:%M:%S")
                 # Ajustar año si es necesario
                 if timestamp.year == 1900:
@@ -505,7 +524,7 @@ class CUPSLogProcessor:
         
         while time.time() - start_time < max_wait_seconds:
             if os.path.exists(control_file_pattern):
-                # Esperar un poco más para asegurar que el archivo esté completamente escrito
+
                 time.sleep(2)
                 return True
             time.sleep(1)
@@ -551,7 +570,7 @@ class CUPSLogProcessor:
                     # Verificar permisos del archivo específico
                     if not os.access(control_file, os.R_OK):
                         permission_errors += 1
-                        if permission_errors <= 3:  # Mostrar solo los primeros 3 errores
+                        if permission_errors <= 3: 
                             logging.warning(f"⚠ Sin permisos para leer: {control_file}")
                         continue
                     
@@ -609,7 +628,7 @@ class CUPSLogProcessor:
     def get_real_page_count(self, document_name: str, job_id: str) -> int:
         """Intentar obtener el número real de páginas usando pdfinfo"""
         try:
-            # Buscar archivos de datos de CUPS que puedan contener el PDF original
+
             data_files = glob.glob(f"{CUPS_SPOOL_DIR}/d{job_id.zfill(6)}-*")
             
             if not data_files:
@@ -761,7 +780,6 @@ class CUPSLogProcessor:
                 
                 logging.info(f"Procesamiento completado: {nuevos_trabajos} trabajos nuevos agregados")
             
-            # SIEMPRE procesar archivos de control para obtener información más precisa
             # Esto incluye trabajos existentes y nuevos
             logging.info("Procesando archivos de control para obtener información más precisa...")
             self.process_cups_control_files()

@@ -1,7 +1,3 @@
-// =====================================================
-// PRINTER STATUS MONITOR - FRONTEND
-// =====================================================
-
 class PrinterStatusMonitor {
     constructor() {
         // Detectar IP automáticamente
