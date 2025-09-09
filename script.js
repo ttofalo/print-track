@@ -59,6 +59,9 @@ class DashboardAPI {
 // Inicializar API
 const api = new DashboardAPI();
 
+// Variable para mantener el estado de los filtros activos
+let activeFilters = {};
+
 // =====================================================
 // FUNCIONES DE ACTUALIZACIÓN DEL DASHBOARD
 // =====================================================
@@ -190,8 +193,8 @@ async function updateDashboard() {
         // Actualizar usuarios top
         await updateTopUsers();
         
-        // Actualizar tabla de trabajos (sin filtros)
-        await updatePrintJobsTable();
+        // Actualizar tabla de trabajos (mantener filtros activos si los hay)
+        await updatePrintJobsTable(activeFilters);
         
     } catch (error) {
         console.error('Error actualizando dashboard:', error);
@@ -228,6 +231,9 @@ async function applyFilters() {
     if (dateToFilter) filters.dateTo = dateToFilter;
     if (printerFilter && printerFilter !== 'all') filters.printer = printerFilter;
 
+    // Guardar filtros activos
+    activeFilters = { ...filters };
+
     // Mostrar loading
     const searchBtn = document.getElementById('search-btn');
     const originalText = searchBtn.innerHTML;
@@ -255,6 +261,9 @@ function clearFilters() {
     document.getElementById('date-from').value = '';
     document.getElementById('date-to').value = '';
     document.getElementById('printer-select').value = 'all';
+    
+    // Limpiar filtros activos
+    activeFilters = {};
     
     // Aplicar filtros vacíos
     updatePrintJobsTable();
