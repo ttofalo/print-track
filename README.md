@@ -26,7 +26,7 @@ Frontend (HTML/CSS/JS) ↔ Backend (Node.js) ↔ Database (MariaDB)
 
 ```
 print-track/
-├── server.js               # Servidor principal Node.js
+├── server.js               # Servidor principa Node.js
 ├── index.html              # Dashboard principal
 ├── login.html              # Sistema de autenticación
 ├── script.js               # Frontend JavaScript 
