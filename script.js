@@ -7,27 +7,51 @@ class DashboardAPI {
         console.log('API Base URL:', this.baseURL);
     }
 
-    async getStats() {
+    async getStats(date = null) {
         try {
-            const response = await fetch(`${this.baseURL}/stats`);
+            // Si no hay fecha, usar la fecha de hoy explícitamente
+            const targetDate = date || new Date().toISOString().split('T')[0];
+            console.log('Enviando fecha al backend:', targetDate);
+            const url = `${this.baseURL}/stats?date=${targetDate}`;
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
+            const data = await response.json();
+            console.log('Recibido del backend:', data);
+            return data;
         } catch (error) {
             console.error('Error obteniendo estadísticas:', error);
             return {
                 total_prints: 0,
-                total_pages: 0
+                total_pages: 0,
+                prints_change: 0,
+                pages_change: 0,
+                date: date || new Date().toISOString().split('T')[0]
             };
         }
     }
 
-    async getTopUsers() {
+    async getTopUsers(date = null) {
         try {
-            const response = await fetch(`${this.baseURL}/top-users`);
+            // Si no hay fecha, usar la fecha de hoy explícitamente
+            const targetDate = date || new Date().toISOString().split('T')[0];
+            const url = `${this.baseURL}/top-users?date=${targetDate}`;
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return await response.json();
         } catch (error) {
             console.error('Error obteniendo usuarios top:', error);
+            return [];
+        }
+    }
+
+    async getSectorsStats() {
+        try {
+            const url = `${this.baseURL}/sectors-stats`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Error obteniendo estadísticas por sector:', error);
             return [];
         }
     }
@@ -61,6 +85,9 @@ const api = new DashboardAPI();
 
 // Variable para mantener el estado de los filtros activos
 let activeFilters = {};
+
+// Variable para mantener la fecha seleccionada
+let selectedDate = null; // null significa "hoy"
 
 // =====================================================
 // FUNCIONES DE ACTUALIZACIÓN DEL DASHBOARD
@@ -98,7 +125,7 @@ function updateCounter(counterId, newValue) {
 // Función para actualizar usuarios más activos
 async function updateTopUsers() {
     try {
-        const users = await api.getTopUsers();
+        const users = await api.getTopUsers(selectedDate);
         const usersList = document.querySelector('.users-list');
         
         if (!usersList) return;
@@ -106,9 +133,10 @@ async function updateTopUsers() {
         usersList.innerHTML = '';
 
         if (users.length === 0) {
+            const dateText = selectedDate === null ? 'HOY' : formatDate(selectedDate);
             usersList.innerHTML = `
                 <div class="empty-state">
-                    <p>No hay usuarios activos hoy</p>
+                    <p>No hay usuarios activos ${dateText}</p>
                 </div>
             `;
             return;
@@ -129,6 +157,336 @@ async function updateTopUsers() {
 
     } catch (error) {
         console.error('Error actualizando usuarios top:', error);
+    }
+}
+
+// Función para actualizar gráfico de sectores (horizontal)
+async function updateSectorsChart() {
+    try {
+        const sectorsData = await api.getSectorsStats();
+        const chartSvg = document.querySelector('.chart-svg');
+        
+        if (!chartSvg) {
+            return;
+        }
+
+        // Limpiar todo el contenido del SVG
+        chartSvg.innerHTML = '';
+
+        if (!sectorsData || sectorsData.length === 0) {
+            // Mostrar mensaje de no hay datos
+            const noDataText = document.createElement('text');
+            noDataText.setAttribute('x', '250');
+            noDataText.setAttribute('y', '150');
+            noDataText.setAttribute('text-anchor', 'middle');
+            noDataText.setAttribute('font-size', '16');
+            noDataText.setAttribute('fill', '#6b7280');
+            noDataText.textContent = 'No hay datos de sectores disponibles';
+            chartSvg.appendChild(noDataText);
+            return;
+        }
+
+        // Crear gráfico con dos barras por sector (impresiones y páginas)
+        const maxPages = Math.max(...sectorsData.map(sector => sector.total_pages));
+        const maxPrints = Math.max(...sectorsData.map(sector => sector.total_prints));
+        const barHeight = 15;
+        const barSpacing = 50;
+        const startY = 30;
+        const maxBarWidth = 280;
+        const labelWidth = 160;
+
+        // Crear barras horizontales para cada sector
+        sectorsData.forEach((sector, index) => {
+            const y = startY + (index * barSpacing);
+            
+            // Calcular anchos de las barras
+            const pagesBarWidth = Math.min((sector.total_pages / maxPages) * maxBarWidth, maxBarWidth);
+            const printsBarWidth = Math.min((sector.total_prints / maxPrints) * maxBarWidth, maxBarWidth);
+            
+            // Crear barra de páginas (naranja más oscuro)
+            const pagesBar = document.createElement('rect');
+            pagesBar.setAttribute('x', labelWidth + 10);
+            pagesBar.setAttribute('y', y);
+            pagesBar.setAttribute('width', pagesBarWidth);
+            pagesBar.setAttribute('height', barHeight);
+            pagesBar.setAttribute('fill', '#d17a00');
+            pagesBar.setAttribute('rx', '2');
+            
+            chartSvg.appendChild(pagesBar);
+
+            // Crear barra de impresiones (naranja más claro)
+            const printsBar = document.createElement('rect');
+            printsBar.setAttribute('x', labelWidth + 10);
+            printsBar.setAttribute('y', y + barHeight + 2);
+            printsBar.setAttribute('width', printsBarWidth);
+            printsBar.setAttribute('height', barHeight);
+            printsBar.setAttribute('fill', '#e48708');
+            printsBar.setAttribute('rx', '2');
+            
+            chartSvg.appendChild(printsBar);
+
+            // Crear título del sector
+            const label = document.createElement('text');
+            label.setAttribute('x', labelWidth);
+            label.setAttribute('y', y + barHeight + 8);
+            label.setAttribute('text-anchor', 'end');
+            label.setAttribute('font-size', '12');
+            label.setAttribute('fill', '#374151');
+            label.setAttribute('font-weight', '500');
+            label.textContent = sector.sector;
+            
+            chartSvg.appendChild(label);
+
+            // Crear valor de páginas
+            const pagesValueLabel = document.createElement('text');
+            pagesValueLabel.setAttribute('x', labelWidth + 15 + pagesBarWidth);
+            pagesValueLabel.setAttribute('y', y + barHeight/2 + 4);
+            pagesValueLabel.setAttribute('font-size', '10');
+            pagesValueLabel.setAttribute('fill', '#6b7280');
+            pagesValueLabel.setAttribute('font-weight', '600');
+            pagesValueLabel.textContent = `${sector.total_pages}`;
+            
+            chartSvg.appendChild(pagesValueLabel);
+
+            // Crear valor de impresiones
+            const printsValueLabel = document.createElement('text');
+            printsValueLabel.setAttribute('x', labelWidth + 15 + printsBarWidth);
+            printsValueLabel.setAttribute('y', y + barHeight + barHeight/2 + 6);
+            printsValueLabel.setAttribute('font-size', '10');
+            printsValueLabel.setAttribute('fill', '#6b7280');
+            printsValueLabel.setAttribute('font-weight', '600');
+            printsValueLabel.textContent = `${sector.total_prints}`;
+            
+            chartSvg.appendChild(printsValueLabel);
+        });
+
+        // Actualizar título del gráfico
+        const chartTitle = document.querySelector('.chart-title');
+        if (chartTitle) {
+            chartTitle.textContent = 'Impresiones por sector';
+        }
+
+        const chartDescription = document.querySelector('.chart-description');
+        if (chartDescription && !chartDescription.id) {
+            // Calcular dinámicamente el rango de fechas de la semana actual
+            const today = new Date();
+            const currentDay = today.getDay(); // 0 = domingo, 1 = lunes, etc.
+            const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // Ajustar para que lunes sea el inicio
+            
+            const monday = new Date(today);
+            monday.setDate(today.getDate() + mondayOffset);
+            
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            
+            const formatWeekDate = (date) => {
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                return `${day}/${month}`;
+            };
+            
+            const weekRange = `${formatWeekDate(monday)} - ${formatWeekDate(sunday)}`;
+            chartDescription.textContent = `Estadísticas semanales por sector (${weekRange})`;
+        }
+
+    } catch (error) {
+        console.error('Error actualizando gráfico de sectores:', error);
+    }
+}
+
+// Función para mostrar gráfico de sectores con datos reales
+async function updateSectorsChartWithTestData() {
+    try {
+        console.log('🔍 Creando gráfico de sectores con datos reales...');
+        const chartSvg = document.querySelector('.chart-svg');
+        if (!chartSvg) {
+            console.error('❌ No se encontró el SVG');
+            return;
+        }
+
+        // LIMPIAR TODO
+        chartSvg.innerHTML = '';
+
+        // OBTENER DATOS REALES DEL BACKEND
+        const allSectorsData = await api.getSectorsStats();
+        console.log('📊 Datos reales obtenidos:', allSectorsData);
+        
+        // FILTRAR SECTOR "SIN SECTOR" - USAR PROPIEDAD CORRECTA
+        const sectorsData = allSectorsData.filter(sector => 
+            sector.sector && 
+            sector.sector !== 'SIN SECTOR' && 
+            sector.sector.trim() !== ''
+        );
+        console.log('📊 Sectores filtrados (sin SIN SECTOR):', sectorsData);
+        
+        // CALCULAR ALTURA DINÁMICA BASADA EN CANTIDAD DE SECTORES - MUY COMPACTA
+        const totalSectors = sectorsData.length;
+        const dynamicHeight = Math.max(150, 60 + (totalSectors * 65) + 10); // Altura base mínima + sectores + margen pequeño
+        
+        // CONFIGURACIÓN EMBELLECIDA - ALTURA DINÁMICA Y APROVECHANDO ANCHO
+        chartSvg.setAttribute('viewBox', `0 0 950 ${dynamicHeight}`);
+        chartSvg.style.maxHeight = `${dynamicHeight}px`;
+        chartSvg.style.width = '100%';
+        chartSvg.style.height = `${dynamicHeight}px`;
+        
+        console.log(`📏 Altura calculada: ${dynamicHeight}px para ${totalSectors} sectores`);
+
+        if (!sectorsData || sectorsData.length === 0) {
+            // Mostrar mensaje si no hay datos
+            const noDataText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            noDataText.setAttribute('x', '250');
+            noDataText.setAttribute('y', '200');
+            noDataText.setAttribute('text-anchor', 'middle');
+            noDataText.setAttribute('font-size', '16');
+            noDataText.setAttribute('fill', '#6b7280');
+            noDataText.textContent = 'No hay datos de sectores disponibles';
+            chartSvg.appendChild(noDataText);
+            return;
+        }
+
+        // CONFIGURACIÓN DEL GRÁFICO - LÍMITES FIJOS (SEMANA ACTUAL)
+        const maxPages = 1500; // LÍMITE FIJO PARA PÁGINAS
+        const maxPrints = 1000; // LÍMITE FIJO PARA IMPRESIONES
+        const barHeight = 25; // ALTURA OPTIMIZADA
+        const barSpacing = 65; // ESPACIADO COMPACTO
+        const startY = 30; // BARRAS PEGADAS A LA LEYENDA
+        const maxBarWidth = 600; // BARRAS MÁS LARGAS PARA APROVECHAR ESPACIO
+        const labelWidth = 280; // ETIQUETAS MÁS COMPACTAS
+
+        // CREAR LEYENDA
+        const legendY = 5; // LEYENDA EN EL TOP
+        
+        // Leyenda para páginas
+        const pagesLegendBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        pagesLegendBar.setAttribute('x', labelWidth + 10);
+        pagesLegendBar.setAttribute('y', legendY);
+        pagesLegendBar.setAttribute('width', '30');
+        pagesLegendBar.setAttribute('height', '20');
+        pagesLegendBar.setAttribute('fill', '#6b7280'); // GRIS
+        pagesLegendBar.setAttribute('rx', '3');
+        chartSvg.appendChild(pagesLegendBar);
+        
+        const pagesLegendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        pagesLegendText.setAttribute('x', labelWidth + 50);
+        pagesLegendText.setAttribute('y', legendY + 15);
+        pagesLegendText.setAttribute('font-size', '16');
+        pagesLegendText.setAttribute('fill', '#374151');
+        pagesLegendText.setAttribute('font-weight', '600');
+        pagesLegendText.textContent = 'Páginas';
+        chartSvg.appendChild(pagesLegendText);
+        
+        // Leyenda para impresiones
+        const printsLegendBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        printsLegendBar.setAttribute('x', labelWidth + 150);
+        printsLegendBar.setAttribute('y', legendY);
+        printsLegendBar.setAttribute('width', '30');
+        printsLegendBar.setAttribute('height', '20');
+        printsLegendBar.setAttribute('fill', '#e48708');
+        printsLegendBar.setAttribute('rx', '3');
+        chartSvg.appendChild(printsLegendBar);
+        
+        const printsLegendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        printsLegendText.setAttribute('x', labelWidth + 190);
+        printsLegendText.setAttribute('y', legendY + 15);
+        printsLegendText.setAttribute('font-size', '16');
+        printsLegendText.setAttribute('fill', '#374151');
+        printsLegendText.setAttribute('font-weight', '600');
+        printsLegendText.textContent = 'Impresiones';
+        chartSvg.appendChild(printsLegendText);
+
+        // CREAR BARRAS PARA CADA SECTOR
+        sectorsData.forEach((sector, index) => {
+            const y = startY + (index * barSpacing);
+            
+            // Calcular anchos de las barras
+            const pagesBarWidth = Math.min((sector.total_pages / maxPages) * maxBarWidth, maxBarWidth);
+            const printsBarWidth = Math.min((sector.total_prints / maxPrints) * maxBarWidth, maxBarWidth);
+            
+            // BARRA DE PÁGINAS (gris - más diferente)
+            const pagesBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            pagesBar.setAttribute('x', labelWidth + 10);
+            pagesBar.setAttribute('y', y);
+            pagesBar.setAttribute('width', pagesBarWidth);
+            pagesBar.setAttribute('height', barHeight);
+            pagesBar.setAttribute('fill', '#6b7280'); // GRIS OSCURO
+            pagesBar.setAttribute('rx', '3');
+            chartSvg.appendChild(pagesBar);
+
+            // BARRA DE IMPRESIONES (naranja - color de la página)
+            const printsBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            printsBar.setAttribute('x', labelWidth + 10);
+            printsBar.setAttribute('y', y + barHeight + 5);
+            printsBar.setAttribute('width', printsBarWidth);
+            printsBar.setAttribute('height', barHeight);
+            printsBar.setAttribute('fill', '#e48708'); // NARANJA DE LA PÁGINA
+            printsBar.setAttribute('rx', '3');
+            chartSvg.appendChild(printsBar);
+
+            // TÍTULO DEL SECTOR - MUCHO MÁS GRANDE
+            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            label.setAttribute('x', labelWidth);
+            label.setAttribute('y', y + barHeight + 20);
+            label.setAttribute('text-anchor', 'end');
+            label.setAttribute('font-size', '18'); // MÁS GRANDE
+            label.setAttribute('fill', '#374151');
+            label.setAttribute('font-weight', '700'); // MUY NEGRITA
+            label.textContent = sector.sector;
+            chartSvg.appendChild(label);
+
+            // VALOR DE PÁGINAS - MUCHO MÁS GRANDE
+            const pagesValue = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            pagesValue.setAttribute('x', labelWidth + 20 + pagesBarWidth + 20);
+            pagesValue.setAttribute('y', y + barHeight/2 + 10);
+            pagesValue.setAttribute('font-size', '16'); // MÁS GRANDE
+            pagesValue.setAttribute('fill', '#1f2937');
+            pagesValue.setAttribute('font-weight', '800'); // MUY NEGRITA
+            pagesValue.textContent = `${parseInt(sector.total_pages).toLocaleString()}`; // SIN CEROS AL INICIO
+            chartSvg.appendChild(pagesValue);
+
+            // VALOR DE IMPRESIONES - MUCHO MÁS GRANDE
+            const printsValue = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            printsValue.setAttribute('x', labelWidth + 20 + printsBarWidth + 25);
+            printsValue.setAttribute('y', y + barHeight + 5 + barHeight/2 + 15);
+            printsValue.setAttribute('font-size', '16'); // MÁS GRANDE
+            printsValue.setAttribute('fill', '#1f2937');
+            printsValue.setAttribute('font-weight', '800'); // MUY NEGRITA
+            printsValue.textContent = `${parseInt(sector.total_prints).toLocaleString()}`; // SIN CEROS AL INICIO
+            chartSvg.appendChild(printsValue);
+        });
+
+        // ACTUALIZAR TÍTULO DEL GRÁFICO
+        const chartTitle = document.querySelector('.chart-title');
+        if (chartTitle) {
+            chartTitle.textContent = 'Impresiones por sector';
+        }
+
+        const chartDescription = document.querySelector('.chart-description');
+        if (chartDescription && !chartDescription.id) {
+            // Calcular dinámicamente el rango de fechas de la semana actual
+            const today = new Date();
+            const currentDay = today.getDay(); // 0 = domingo, 1 = lunes, etc.
+            const mondayOffset = currentDay === 0 ? -6 : 1 - currentDay; // Ajustar para que lunes sea el inicio
+            
+            const monday = new Date(today);
+            monday.setDate(today.getDate() + mondayOffset);
+            
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            
+            const formatWeekDate = (date) => {
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                return `${day}/${month}`;
+            };
+            
+            const weekRange = `${formatWeekDate(monday)} - ${formatWeekDate(sunday)}`;
+            chartDescription.textContent = `Estadísticas semanales por sector (${weekRange})`;
+        }
+
+        console.log('✅ Gráfico de sectores actualizado con datos reales');
+
+    } catch (error) {
+        console.error('❌ Error actualizando gráfico de sectores:', error);
     }
 }
 
@@ -180,7 +538,7 @@ async function updatePrintJobsTable(filters = {}) {
 async function updateDashboard() {
     try {
         // Obtener estadísticas
-        const stats = await api.getStats();
+        const stats = await api.getStats(selectedDate);
         
         // Actualizar contadores
         updateCounter('prints', stats.total_prints);
@@ -192,6 +550,12 @@ async function updateDashboard() {
         
         // Actualizar usuarios top
         await updateTopUsers();
+        
+        // Actualizar gráfico de sectores (solo datos de prueba)
+        updateSectorsChartWithTestData();
+        
+        // Actualizar títulos con la fecha
+        updateTitles(stats.date);
         
         // Actualizar tabla de trabajos (mantener filtros activos si los hay)
         await updatePrintJobsTable(activeFilters);
@@ -210,6 +574,146 @@ function updateChangePercentage(elementId, percentage) {
         
         element.textContent = `${sign}${percentage}%`;
         element.style.color = color;
+    }
+}
+
+// =====================================================
+// FUNCIONES DE NAVEGACIÓN DE FECHAS
+// =====================================================
+
+// Función para formatear fecha
+function formatDate(dateString) {
+    // Si no hay fecha seleccionada (selectedDate es null), significa que estamos en "hoy"
+    if (selectedDate === null) {
+        return 'HOY';
+    }
+    
+    console.log('formatDate recibió:', dateString);
+    
+    // Parsear la fecha sin problemas de zona horaria
+    // dateString viene en formato "YYYY-MM-DD"
+    const [year, month, day] = dateString.split('-');
+    
+    // Crear la fecha directamente con los componentes
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    
+    const formatted = date.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+    
+    console.log('formatDate devolvió:', formatted);
+    return formatted;
+}
+
+
+// Función para actualizar los títulos de las tarjetas
+function updateTitles(dateString) {
+    const printsTitle = document.getElementById('prints-title');
+    const pagesTitle = document.getElementById('pages-title');
+    const usersDescription = document.getElementById('users-description');
+    
+    console.log('Actualizando títulos con fecha recibida:', dateString);
+    console.log('selectedDate actual:', selectedDate);
+    
+    // Si selectedDate es null, estamos en "hoy"
+    if (selectedDate === null) {
+        const dateText = 'HOY';
+        console.log('Mostrando HOY');
+        
+        if (printsTitle) {
+            printsTitle.textContent = `Impresiones ${dateText}`;
+        }
+        
+        if (pagesTitle) {
+            pagesTitle.textContent = `Páginas totales ${dateText}`;
+        }
+        
+        if (usersDescription) {
+            usersDescription.textContent = `Top 5 usuarios por páginas impresas ${dateText}`;
+        }
+    } else {
+        // Si selectedDate no es null, usar esa fecha directamente
+        const dateText = formatDate(selectedDate);
+        console.log('Mostrando fecha específica:', dateText, 'basada en selectedDate:', selectedDate);
+        
+        if (printsTitle) {
+            printsTitle.textContent = `Impresiones ${dateText}`;
+        }
+        
+        if (pagesTitle) {
+            pagesTitle.textContent = `Páginas totales ${dateText}`;
+        }
+        
+        if (usersDescription) {
+            usersDescription.textContent = `Top 5 usuarios por páginas impresas ${dateText}`;
+        }
+    }
+}
+
+// Función para navegar al día anterior
+function goToPreviousDay() {
+    if (selectedDate === null) {
+        // Si estamos en "hoy", calcular dinámicamente el día anterior
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        selectedDate = yesterday.toISOString().split('T')[0];
+        console.log('Navegando a fecha anterior (calculada dinámicamente):', selectedDate);
+    } else {
+        // Si estamos en una fecha específica, ir al día anterior
+        const currentDate = new Date(selectedDate + 'T12:00:00');
+        currentDate.setDate(currentDate.getDate() - 1);
+        selectedDate = currentDate.toISOString().split('T')[0];
+        console.log('Navegando a fecha anterior:', selectedDate);
+    }
+    
+    updateDashboard();
+    updateNavigationButtons();
+}
+
+// Función para navegar al día siguiente
+function goToNextDay() {
+    if (selectedDate === null) {
+        // Si estamos en "hoy", no podemos ir al futuro
+        return;
+    }
+    
+    // Si estamos en ayer, volver a hoy
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayString = yesterday.toISOString().split('T')[0];
+    
+    if (selectedDate === yesterdayString) {
+        selectedDate = null;
+        console.log('Volviendo a HOY');
+    } else {
+        // Para otras fechas, ir al día siguiente
+        const currentDate = new Date(selectedDate + 'T12:00:00');
+        currentDate.setDate(currentDate.getDate() + 1);
+        selectedDate = currentDate.toISOString().split('T')[0];
+        console.log('Navegando a fecha siguiente:', selectedDate);
+    }
+    
+    updateDashboard();
+    updateNavigationButtons();
+}
+
+// Función para actualizar el estado de los botones de navegación
+function updateNavigationButtons() {
+    const prevBtn = document.getElementById('prev-day-btn');
+    const nextBtn = document.getElementById('next-day-btn');
+    
+    // El botón anterior siempre está habilitado (podemos ir al pasado)
+    if (prevBtn) {
+        prevBtn.disabled = false;
+    }
+    
+    // El botón siguiente está deshabilitado solo si estamos en "hoy"
+    if (nextBtn) {
+        nextBtn.disabled = selectedDate === null;
     }
 }
 
@@ -448,11 +952,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar event listeners
     setupEventListeners();
     
+    // Inicializar botones de navegación
+    updateNavigationButtons();
+    
     // Cargar datos iniciales
     updateDashboard();
     
     // Configurar actualización automática cada 30 segundos
     setInterval(updateDashboard, 30000);
+    
+    // Configurar actualización del gráfico de sectores cada 30 segundos
+    setInterval(updateSectorsChartWithTestData, 30000);
     
     console.log('✅ Dashboard inicializado correctamente');
 });
@@ -474,6 +984,17 @@ function setupEventListeners() {
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
         exportBtn.addEventListener('click', exportToExcel);
+    }
+    
+    // Event listeners para navegación de fechas
+    const prevDayBtn = document.getElementById('prev-day-btn');
+    if (prevDayBtn) {
+        prevDayBtn.addEventListener('click', goToPreviousDay);
+    }
+    
+    const nextDayBtn = document.getElementById('next-day-btn');
+    if (nextDayBtn) {
+        nextDayBtn.addEventListener('click', goToNextDay);
     }
     
     // Event listeners para filtros con Enter

@@ -117,8 +117,31 @@ class PrinterStatusMonitor {
     updatePrinterCard(printer) {
         const card = document.querySelector(`[data-printer-id="${printer.id}"]`);
         if (card) {
-            card.className = `printer-card ${printer.status}`;
-            card.innerHTML = this.createPrinterCard(printer);
+            // Agregar clase de actualización para transición suave
+            card.classList.add('updating');
+            
+            // Pequeño delay para la transición
+            setTimeout(() => {
+                // Solo actualizar la clase del estado
+                card.className = `printer-card ${printer.status}`;
+                
+                // Actualizar solo los elementos específicos que cambian
+                const statusDot = card.querySelector('.printer-status-dot');
+                if (statusDot) {
+                    statusDot.className = `printer-status-dot ${printer.status}`;
+                }
+                
+                const statusLabel = card.querySelector('.printer-status-label');
+                if (statusLabel) {
+                    statusLabel.className = `printer-status-label ${printer.status}`;
+                    statusLabel.textContent = printer.status === 'online' ? 'ONLINE' : 'OFFLINE';
+                }
+                
+                // Remover clase de actualización después de un breve momento
+                setTimeout(() => {
+                    card.classList.remove('updating');
+                }, 100);
+            }, 50);
         }
     }
     

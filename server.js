@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const path = require('path');
+const { SECTORS_CONFIG, getSectorForPrinter } = require('./sectors-config.js');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -46,49 +47,63 @@ app.get('/dashboard', (req, res) => {
 // Endpoint para obtener estadísticas del dashboard
 app.get('/api/stats', async (req, res) => {
   try {
+    const { date } = req.query;
+    console.log('Backend recibió fecha:', date);
     const connection = await pool.getConnection();
     
-    // Obtener estadísticas de hoy
-    const [todayStats] = await connection.execute(`
+    // Usar la fecha proporcionada o la fecha actual por defecto
+    const targetDate = date || 'CURDATE()';
+    const dateCondition = date ? 'DATE(timestamp) = ?' : 'DATE(timestamp) = CURDATE()';
+    const params = date ? [date] : [];
+    
+    // Obtener estadísticas del día seleccionado
+    const [selectedStats] = await connection.execute(`
       SELECT 
         COUNT(*) as total_prints,
         SUM(pages) as total_pages
       FROM print_jobs 
-      WHERE DATE(timestamp) = CURDATE()
-    `);
+      WHERE ${dateCondition}
+    `, params);
     
-    // Obtener estadísticas de ayer
-    const [yesterdayStats] = await connection.execute(`
+    // Obtener estadísticas del día anterior para comparación
+    const previousDateCondition = date ? 'DATE(timestamp) = DATE_SUB(?, INTERVAL 1 DAY)' : 'DATE(timestamp) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)';
+    const previousParams = date ? [date] : [];
+    
+    const [previousStats] = await connection.execute(`
       SELECT 
         COUNT(*) as total_prints,
         SUM(pages) as total_pages
       FROM print_jobs 
-      WHERE DATE(timestamp) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
-    `);
+      WHERE ${previousDateCondition}
+    `, previousParams);
     
-    const today = todayStats[0];
-    const yesterday = yesterdayStats[0];
+    const selected = selectedStats[0];
+    const previous = previousStats[0];
     
     // Calcular porcentajes de cambio
-    const todayPrints = today.total_prints || 0;
-    const todayPages = today.total_pages || 0;
-    const yesterdayPrints = yesterday.total_prints || 0;
-    const yesterdayPages = yesterday.total_pages || 0;
+    const selectedPrints = selected.total_prints || 0;
+    const selectedPages = selected.total_pages || 0;
+    const previousPrints = previous.total_prints || 0;
+    const previousPages = previous.total_pages || 0;
     
-    const printsChange = yesterdayPrints === 0 ? 100 : 
-      Math.round(((todayPrints - yesterdayPrints) / yesterdayPrints) * 100);
+    const printsChange = previousPrints === 0 ? (selectedPrints > 0 ? 100 : 0) : 
+      Math.round(((selectedPrints - previousPrints) / previousPrints) * 100);
     
-    const pagesChange = yesterdayPages === 0 ? 100 : 
-      Math.round(((todayPages - yesterdayPages) / yesterdayPages) * 100);
+    const pagesChange = previousPages === 0 ? (selectedPages > 0 ? 100 : 0) : 
+      Math.round(((selectedPages - previousPages) / previousPages) * 100);
     
     connection.release();
     
-    res.json({
-      total_prints: todayPrints,
-      total_pages: todayPages,
+    const response = {
+      total_prints: selectedPrints,
+      total_pages: selectedPages,
       prints_change: printsChange,
-      pages_change: pagesChange
-    });
+      pages_change: pagesChange,
+      date: date // Devolver exactamente la fecha que se envió
+    };
+    
+    console.log('Backend devolviendo respuesta:', response);
+    res.json(response);
     
   } catch (error) {
     console.error('Error obteniendo estadísticas:', error);
@@ -102,19 +117,24 @@ app.get('/api/stats', async (req, res) => {
 // Endpoint para obtener usuarios más activos
 app.get('/api/top-users', async (req, res) => {
   try {
+    const { date } = req.query;
     const connection = await pool.getConnection();
     
-    // Obtener top 5 usuarios por páginas impresas hoy
+    // Usar la fecha proporcionada o la fecha actual por defecto
+    const dateCondition = date ? 'DATE(timestamp) = ?' : 'DATE(timestamp) = CURDATE()';
+    const params = date ? [date] : [];
+    
+    // Obtener top 5 usuarios por páginas impresas en el día seleccionado
     const [users] = await connection.execute(`
       SELECT 
         user_id,
         SUM(pages) as total_pages_today
       FROM print_jobs 
-      WHERE DATE(timestamp) = CURDATE()
+      WHERE ${dateCondition}
       GROUP BY user_id
       ORDER BY total_pages_today DESC
       LIMIT 5
-    `);
+    `, params);
     
     connection.release();
     
@@ -122,6 +142,89 @@ app.get('/api/top-users', async (req, res) => {
     
   } catch (error) {
     console.error('Error obteniendo usuarios top:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      details: error.message 
+    });
+  }
+});
+
+// Endpoint para obtener estadísticas por sector
+app.get('/api/sectors-stats', async (req, res) => {
+  try {
+    console.log('🔍 Endpoint /api/sectors-stats llamado');
+    console.log('📊 getSectorForPrinter disponible:', typeof getSectorForPrinter);
+    console.log('🏢 Total sectores configurados:', Object.keys(SECTORS_CONFIG).length);
+    console.log('📋 Sectores configurados:', Object.keys(SECTORS_CONFIG));
+    
+    // Verificar que la función esté disponible
+    if (typeof getSectorForPrinter !== 'function') {
+      throw new Error('getSectorForPrinter no está disponible');
+    }
+    
+    const connection = await pool.getConnection();
+    
+    // Para sectores, usar la semana actual (lunes a domingo)
+    const dateCondition = 'YEARWEEK(timestamp, 1) = YEARWEEK(CURDATE(), 1)';
+    const params = [];
+    
+    console.log('📅 Obteniendo estadísticas de impresoras para la SEMANA ACTUAL...');
+    
+    // Obtener estadísticas por impresora
+    const [printerStats] = await connection.execute(`
+      SELECT 
+        p.name as printer_name,
+        COUNT(*) as total_prints,
+        SUM(pj.pages) as total_pages
+      FROM print_jobs pj
+      JOIN printers p ON pj.printer_id = p.id
+      WHERE ${dateCondition}
+      GROUP BY p.name
+      ORDER BY total_pages DESC
+    `, params);
+    
+    connection.release();
+    
+    console.log('📊 Estadísticas de impresoras obtenidas:', printerStats.length);
+    console.log('📋 Datos de impresoras:', JSON.stringify(printerStats, null, 2));
+    
+    // Agrupar por sector
+    const sectorStats = {};
+    
+    printerStats.forEach(printer => {
+      const sector = getSectorForPrinter(printer.printer_name);
+      console.log(`🖨️ Impresora ${printer.printer_name} -> Sector: ${sector}`);
+      
+      if (!sectorStats[sector]) {
+        sectorStats[sector] = {
+          sector: sector,
+          total_prints: 0,
+          total_pages: 0,
+          printers: []
+        };
+      }
+      
+      sectorStats[sector].total_prints += parseInt(printer.total_prints);
+      sectorStats[sector].total_pages += parseInt(printer.total_pages);
+      sectorStats[sector].printers.push({
+        name: printer.printer_name,
+        prints: parseInt(printer.total_prints),
+        pages: parseInt(printer.total_pages)
+      });
+    });
+    
+    console.log('🏢 Sectores agrupados:', Object.keys(sectorStats));
+    
+    // Convertir a array y ordenar por páginas totales
+    const sectorsArray = Object.values(sectorStats)
+      .sort((a, b) => b.total_pages - a.total_pages);
+    
+    console.log('Estadísticas por sector devueltas:', sectorsArray.length, 'sectores');
+    
+    res.json(sectorsArray);
+    
+  } catch (error) {
+    console.error('Error obteniendo estadísticas por sector:', error);
     res.status(500).json({ 
       error: 'Error interno del servidor',
       details: error.message 
@@ -196,14 +299,13 @@ function getPrintersList() {
   return [
     { id: 'PHARI018', ip: '10.10.64.17', location: 'PARQUE TANQUES' },
     { id: 'PHARI019', ip: '10.10.64.66', location: 'RECEPCION GRANOS' },
-    { id: 'PHARI030', ip: '10.10.64.16', location: 'RECEPCION GRANOS' },
+    { id: 'PHARI030', ip: '10.10.64.16', location: 'LOGISTICA TRANSPORTE' },
     { id: 'PHARI038', ip: '10.10.64.30', location: 'SISTEMAS' },
     { id: 'PHARI001', ip: '10.10.64.4', location: 'LABORATORIO PLANTA DE ALCOHOL' },
-    { id: 'PHARI038', ip: '10.10.64.17', location: 'SISTEMAS' },
     { id: 'PHARI025', ip: '10.10.64.63', location: 'INGENIERÍA' },
     { id: 'PHARI026', ip: '10.10.64.65', location: 'INGENIERÍA' },
-    { id: 'PHARI056', ip: '10.10.64.20', location: 'LIDERES CALIDAD' },
-    { id: 'PHARI066', ip: '10.10.64.10', location: 'OFICINA LIDERES DE CALIDAD' },
+    { id: 'PHARI056', ip: '10.10.64.20', location: 'I+D' },
+    { id: 'PHARI066', ip: '10.10.64.10', location: 'LIDERES DE CALIDAD' },
     { id: 'PHARI004', ip: '10.10.64.25', location: 'DOMI SANITARIO' },
     { id: 'PHARI024', ip: '10.10.64.64', location: 'INGENIERIA (RICOH)' },
     { id: 'PHARI031', ip: '10.10.64.22', location: 'ADUANA' },

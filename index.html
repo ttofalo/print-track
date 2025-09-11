@@ -51,39 +51,53 @@
 
             <div class="tabs-content" data-tab-content="dashboard" data-state="active">
                 <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-title">Impresiones hoy</div>
-                            <div class="stat-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14,2 14,8 20,8"/>
-                                    <line x1="16" y1="13" x2="8" y2="13"/>
-                                    <line x1="16" y1="17" x2="8" y2="17"/>
-                                    <polyline points="10,9 9,9 8,9"/>
-                                </svg>
+                <div class="stats-container">
+                    <button id="prev-day-btn" class="nav-btn nav-btn-left" title="Día anterior">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15,18 9,12 15,6"/>
+                        </svg>
+                    </button>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <div class="stat-title" id="prints-title">Impresiones hoy</div>
+                                <div class="stat-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14,2 14,8 20,8"/>
+                                        <line x1="16" y1="13" x2="8" y2="13"/>
+                                        <line x1="16" y1="17" x2="8" y2="17"/>
+                                        <polyline points="10,9 9,9 8,9"/>
+                                    </svg>
+                                </div>
                             </div>
+                            <div class="stat-value" data-counter="prints">0</div>
+                            <div class="stat-change" id="prints-change">+0%</div>
                         </div>
-                        <div class="stat-value" data-counter="prints">0</div>
-                        <div class="stat-change" id="prints-change">+0%</div>
-                    </div>
 
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-title">Páginas totales hoy</div>
-                            <div class="stat-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                                    <line x1="9" y1="9" x2="15" y2="9"/>
-                                    <line x1="9" y1="13" x2="15" y2="13"/>
-                                    <line x1="9" y1="17" x2="15" y2="17"/>
-                                </svg>
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <div class="stat-title" id="pages-title">Páginas totales hoy</div>
+                                <div class="stat-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="9" y1="9" x2="15" y2="9"/>
+                                        <line x1="9" y1="13" x2="15" y2="13"/>
+                                        <line x1="9" y1="17" x2="15" y2="17"/>
+                                    </svg>
+                                </div>
                             </div>
+                            <div class="stat-value" data-counter="pages">0</div>
+                            <div class="stat-change" id="pages-change">+0%</div>
                         </div>
-                        <div class="stat-value" data-counter="pages">0</div>
-                        <div class="stat-change" id="pages-change">+0%</div>
                     </div>
+                    
+                    <button id="next-day-btn" class="nav-btn nav-btn-right" title="Día siguiente">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9,18 15,12 9,6"/>
+                        </svg>
+                    </button>
                 </div>
 
                 <div class="charts-grid">
@@ -93,7 +107,7 @@
                             <div class="chart-title">Actividad de impresión</div>
                             <div class="chart-description">Impresiones y páginas por día de la semana</div>
                         </div>
-                        <div class="chart-content">
+                        <div class="chart-content" style="height: 600px; overflow-y: auto;">
                             <svg class="chart-svg" viewBox="0 0 500 300" preserveAspectRatio="xMidYMid meet">
                                 <g class="chart-grid">
                                     <line x1="50" y1="250" x2="450" y2="250" stroke="#e5e7eb" stroke-dasharray="3 3"/>
@@ -118,22 +132,7 @@
                                     <text x="40" y="100" text-anchor="end" fill="#4b5563" font-size="12">150</text>
                                     <text x="40" y="50" text-anchor="end" fill="#4b5563" font-size="12">200</text>
                                 </g>
-                                <!-- Bars for Impresiones -->
-                                <rect class="chart-bar" x="70" y="160" width="20" height="90" fill="#e48708" rx="2"/>
-                                <rect class="chart-bar" x="130" y="146" width="20" height="104" fill="#e48708" rx="2"/>
-                                <rect class="chart-bar" x="190" y="174" width="20" height="76" fill="#e48708" rx="2"/>
-                                <rect class="chart-bar" x="250" y="128" width="20" height="122" fill="#e48708" rx="2"/>
-                                <rect class="chart-bar" x="310" y="104" width="20" height="146" fill="#e48708" rx="2"/>
-                                <rect class="chart-bar" x="370" y="194" width="20" height="56" fill="#e48708" rx="2"/>
-                                <rect class="chart-bar" x="430" y="220" width="20" height="30" fill="#e48708" rx="2"/>
-                                <!-- Bars for Páginas -->
-                                <rect class="chart-bar" x="90" y="100" width="20" height="150" fill="#d17a00" rx="2"/>
-                                <rect class="chart-bar" x="150" y="90" width="20" height="160" fill="#d17a00" rx="2"/>
-                                <rect class="chart-bar" x="210" y="110" width="20" height="140" fill="#d17a00" rx="2"/>
-                                <rect class="chart-bar" x="270" y="70" width="20" height="180" fill="#d17a00" rx="2"/>
-                                <rect class="chart-bar" x="330" y="50" width="20" height="200" fill="#d17a00" rx="2"/>
-                                <rect class="chart-bar" x="390" y="120" width="20" height="130" fill="#d17a00" rx="2"/>
-                                <rect class="chart-bar" x="450" y="150" width="20" height="100" fill="#d17a00" rx="2"/>
+                                <!-- Las barras se generan dinámicamente -->
                             </svg>
                         </div>
                     </div>
@@ -142,7 +141,7 @@
                     <div class="chart-card">
                         <div class="chart-header">
                             <div class="chart-title">Usuarios más activos</div>
-                            <div class="chart-description">Top 5 usuarios por páginas impresas hoy</div>
+                            <div class="chart-description" id="users-description">Top 5 usuarios por páginas impresas hoy</div>
                         </div>
                         <div class="chart-content">
                             <div class="users-list">
